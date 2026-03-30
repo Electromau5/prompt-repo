@@ -129,21 +129,13 @@ export default function PromptRepository() {
       try {
         setLoading(true);
         const result = await api.getData();
-        if (result && (result.folders?.length > 0 || result.prompts?.length > 0)) {
-          setData({ ...emptyData, ...result, tagCategories: result.tagCategories || [] });
-          // Expand root folders by default
-          const rootFolderIds = result.folders?.filter(f => !f.parentId).map(f => f.id) || [];
-          setExpandedFolders(new Set(rootFolderIds));
-        } else {
-          // No saved data - use default folders (for local development)
-          setData(initialDefaultData);
-          setExpandedFolders(new Set(['writing', 'coding', 'project-strategy', 'design', 'agents', 'financial', 'events', 'growth-hacking', 'funding', 'lifestyle', 'databases']));
-        }
+        setData({ ...emptyData, ...result, tagCategories: result.tagCategories || [] });
+        // Expand root folders by default
+        const rootFolderIds = result.folders?.filter(f => !f.parentId).map(f => f.id) || [];
+        setExpandedFolders(new Set(rootFolderIds));
       } catch (e) {
         console.error('Error loading data:', e);
-        // On error, use default folders (for local development without DB)
-        setData(initialDefaultData);
-        setExpandedFolders(new Set(['writing', 'coding', 'project-strategy', 'design', 'agents', 'financial', 'events', 'growth-hacking', 'funding', 'lifestyle', 'databases']));
+        showNotif('Failed to load data from server');
       }
       setLoaded(true);
       setLoading(false);
@@ -300,9 +292,8 @@ export default function PromptRepository() {
       const newCategory = await api.createTagCategory(name, []);
       setData(d => ({ ...d, tagCategories: [...(d.tagCategories || []), newCategory] }));
     } catch (e) {
-      // Fallback for local development
-      const newCategory = { id: generateId(), name, tags: [] };
-      setData(d => ({ ...d, tagCategories: [...(d.tagCategories || []), newCategory] }));
+      console.error('Failed to create tag category:', e);
+      showNotif('Failed to create tag category');
     }
   };
 
@@ -310,19 +301,21 @@ export default function PromptRepository() {
     const category = (data.tagCategories || []).find(c => c.id === id);
     try {
       await api.updateTagCategory(id, name, category?.tags || []);
+      setData(d => ({ ...d, tagCategories: (d.tagCategories || []).map(c => c.id === id ? { ...c, name } : c) }));
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to update tag category:', e);
+      showNotif('Failed to update tag category');
     }
-    setData(d => ({ ...d, tagCategories: (d.tagCategories || []).map(c => c.id === id ? { ...c, name } : c) }));
   };
 
   const deleteTagCategory = async (id) => {
     try {
       await api.deleteTagCategory(id);
+      setData(d => ({ ...d, tagCategories: (d.tagCategories || []).filter(c => c.id !== id) }));
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to delete tag category:', e);
+      showNotif('Failed to delete tag category');
     }
-    setData(d => ({ ...d, tagCategories: (d.tagCategories || []).filter(c => c.id !== id) }));
   };
 
   const assignTagToCategory = async (tag, categoryId) => {
@@ -330,18 +323,19 @@ export default function PromptRepository() {
     const newTags = [...new Set([...(category?.tags || []), tag])];
     try {
       await api.updateTagCategory(categoryId, category?.name || '', newTags);
+      setData(d => ({
+        ...d,
+        tagCategories: (d.tagCategories || []).map(c => ({
+          ...c,
+          tags: c.id === categoryId
+            ? [...new Set([...c.tags, tag])]
+            : c.tags
+        }))
+      }));
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to assign tag to category:', e);
+      showNotif('Failed to assign tag');
     }
-    setData(d => ({
-      ...d,
-      tagCategories: (d.tagCategories || []).map(c => ({
-        ...c,
-        tags: c.id === categoryId
-          ? [...new Set([...c.tags, tag])]
-          : c.tags
-      }))
-    }));
   };
 
   const removeTagFromCategory = async (tag, categoryId) => {
@@ -349,15 +343,16 @@ export default function PromptRepository() {
     const newTags = (category?.tags || []).filter(t => t !== tag);
     try {
       await api.updateTagCategory(categoryId, category?.name || '', newTags);
+      setData(d => ({
+        ...d,
+        tagCategories: (d.tagCategories || []).map(c =>
+          c.id === categoryId ? { ...c, tags: c.tags.filter(t => t !== tag) } : c
+        )
+      }));
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to remove tag from category:', e);
+      showNotif('Failed to remove tag');
     }
-    setData(d => ({
-      ...d,
-      tagCategories: (d.tagCategories || []).map(c =>
-        c.id === categoryId ? { ...c, tags: c.tags.filter(t => t !== tag) } : c
-      )
-    }));
   };
 
   const getUncategorizedTags = () => {
@@ -621,27 +616,22 @@ export default function PromptRepository() {
       if (showNewPrompt || editingPrompt) {
         setCreatedFolderIdForPrompt(newFolder.id);
       }
+      showNotif('Folder created');
     } catch (e) {
-      // Fallback for local development without DB
-      const newFolder = { id: generateId(), name, parentId };
-      setData(d => ({ ...d, folders: [...d.folders, newFolder] }));
-      if (parentId) setExpandedFolders(prev => new Set([...prev, parentId]));
-      setShowNewFolder(false);
-      setNewFolderParent(null);
-      if (showNewPrompt || editingPrompt) {
-        setCreatedFolderIdForPrompt(newFolder.id);
-      }
+      console.error('Failed to create folder:', e);
+      showNotif('Failed to create folder');
     }
   };
 
   const updateFolder = async (id, name) => {
     const folder = data.folders.find(f => f.id === id);
     try {
-      await api.updateFolder(id, name, folder?.parentId || null);
-      setData(d => ({ ...d, folders: d.folders.map(f => f.id === id ? { ...f, name } : f) }));
+      const updated = await api.updateFolder(id, name, folder?.parentId || null);
+      setData(d => ({ ...d, folders: d.folders.map(f => f.id === id ? { ...f, ...updated } : f) }));
+      showNotif('Folder updated');
     } catch (e) {
-      // Fallback for local development
-      setData(d => ({ ...d, folders: d.folders.map(f => f.id === id ? { ...f, name } : f) }));
+      console.error('Failed to update folder:', e);
+      showNotif('Failed to update folder');
     }
     setEditingFolder(null);
   };
@@ -655,14 +645,16 @@ export default function PromptRepository() {
     const descendantIds = getAllDescendantFolderIds(id);
     try {
       await api.deleteFolder(id);
+      setData(d => ({
+        ...d,
+        folders: d.folders.filter(f => !descendantIds.includes(f.id)),
+        prompts: d.prompts.filter(p => !descendantIds.includes(p.folderId))
+      }));
+      showNotif('Folder deleted');
     } catch (e) {
-      // Continue with local update even if API fails
+      console.error('Failed to delete folder:', e);
+      showNotif('Failed to delete folder');
     }
-    setData(d => ({
-      ...d,
-      folders: d.folders.filter(f => !descendantIds.includes(f.id)),
-      prompts: d.prompts.filter(p => !descendantIds.includes(p.folderId))
-    }));
   };
 
   const addPrompt = async (prompt) => {
@@ -677,43 +669,39 @@ export default function PromptRepository() {
       setShowNewPrompt(false);
       setNewPromptFolder(null);
       setExpandedPrompts(prev => new Set([...prev, newPrompt.id]));
+      showNotif('Prompt created');
     } catch (e) {
-      // Fallback for local development
-      const newPrompt = { ...prompt, id: generateId() };
-      const newTags = prompt.tags.filter(t => !data.tags.includes(t));
-      setData(d => ({
-        ...d,
-        prompts: [...d.prompts, newPrompt],
-        tags: [...d.tags, ...newTags]
-      }));
-      setShowNewPrompt(false);
-      setNewPromptFolder(null);
-      setExpandedPrompts(prev => new Set([...prev, newPrompt.id]));
+      console.error('Failed to create prompt:', e);
+      showNotif('Failed to create prompt');
     }
   };
 
   const updatePrompt = async (id, updates) => {
-    const newTags = updates.tags?.filter(t => !data.tags.includes(t)) || [];
     try {
-      await api.updatePrompt(id, updates.title, updates.content, updates.folderId, updates.tags || []);
+      const updated = await api.updatePrompt(id, updates.title, updates.content, updates.folderId, updates.tags || []);
+      const newTags = updates.tags?.filter(t => !data.tags.includes(t)) || [];
+      setData(d => ({
+        ...d,
+        prompts: d.prompts.map(p => p.id === id ? { ...p, ...updated } : p),
+        tags: [...d.tags, ...newTags]
+      }));
+      showNotif('Prompt updated');
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to update prompt:', e);
+      showNotif('Failed to update prompt');
     }
-    setData(d => ({
-      ...d,
-      prompts: d.prompts.map(p => p.id === id ? { ...p, ...updates } : p),
-      tags: [...d.tags, ...newTags]
-    }));
     setEditingPrompt(null);
   };
 
   const deletePrompt = async (id) => {
     try {
       await api.deletePrompt(id);
+      setData(d => ({ ...d, prompts: d.prompts.filter(p => p.id !== id) }));
+      showNotif('Prompt deleted');
     } catch (e) {
-      // Continue with local update
+      console.error('Failed to delete prompt:', e);
+      showNotif('Failed to delete prompt');
     }
-    setData(d => ({ ...d, prompts: d.prompts.filter(p => p.id !== id) }));
   };
 
   const movePrompt = async (promptId, newFolderId) => {
@@ -722,17 +710,18 @@ export default function PromptRepository() {
     if (prompt && targetFolder && prompt.folderId !== newFolderId) {
       try {
         await api.updatePrompt(promptId, prompt.title, prompt.content, newFolderId, prompt.tags);
+        setData(d => ({
+          ...d,
+          prompts: d.prompts.map(p => p.id === promptId ? { ...p, folderId: newFolderId } : p)
+        }));
+        setMoveNotification(`Moved "${prompt.title}" to "${targetFolder.name}"`);
+        setTimeout(() => setMoveNotification(null), 2500);
+        setExpandedFolders(prev => new Set([...prev, newFolderId]));
+        setExpandedPrompts(prev => new Set([...prev, promptId]));
       } catch (e) {
-        // Continue with local update
+        console.error('Failed to move prompt:', e);
+        showNotif('Failed to move prompt');
       }
-      setData(d => ({
-        ...d,
-        prompts: d.prompts.map(p => p.id === promptId ? { ...p, folderId: newFolderId } : p)
-      }));
-      setMoveNotification(`Moved "${prompt.title}" to "${targetFolder.name}"`);
-      setTimeout(() => setMoveNotification(null), 2500);
-      setExpandedFolders(prev => new Set([...prev, newFolderId]));
-      setExpandedPrompts(prev => new Set([...prev, promptId]));
     }
   };
 
