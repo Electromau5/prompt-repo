@@ -1,49 +1,57 @@
--- Folders table
-CREATE TABLE IF NOT EXISTS folders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+-- Drop existing tables if they exist (to recreate with new schema)
+DROP TABLE IF EXISTS category_tags CASCADE;
+DROP TABLE IF EXISTS prompt_tags CASCADE;
+DROP TABLE IF EXISTS tag_categories CASCADE;
+DROP TABLE IF EXISTS tags CASCADE;
+DROP TABLE IF EXISTS prompts CASCADE;
+DROP TABLE IF EXISTS folders CASCADE;
+
+-- Folders table (using TEXT for IDs to support string IDs like 'writing', 'coding')
+CREATE TABLE folders (
+  id TEXT PRIMARY KEY,
   name VARCHAR(255) NOT NULL,
-  parent_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+  parent_id TEXT REFERENCES folders(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Prompts table
-CREATE TABLE IF NOT EXISTS prompts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE prompts (
+  id TEXT PRIMARY KEY,
   title VARCHAR(255) NOT NULL,
   content TEXT NOT NULL,
-  folder_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+  folder_id TEXT REFERENCES folders(id) ON DELETE CASCADE,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
 -- Tags table
-CREATE TABLE IF NOT EXISTS tags (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE tags (
+  id TEXT PRIMARY KEY,
   name VARCHAR(100) UNIQUE NOT NULL
 );
 
 -- Tag categories table
-CREATE TABLE IF NOT EXISTS tag_categories (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+CREATE TABLE tag_categories (
+  id TEXT PRIMARY KEY,
   name VARCHAR(100) NOT NULL
 );
 
 -- Junction: prompt_tags (many-to-many relationship between prompts and tags)
-CREATE TABLE IF NOT EXISTS prompt_tags (
-  prompt_id UUID REFERENCES prompts(id) ON DELETE CASCADE,
-  tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+CREATE TABLE prompt_tags (
+  prompt_id TEXT REFERENCES prompts(id) ON DELETE CASCADE,
+  tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
   PRIMARY KEY (prompt_id, tag_id)
 );
 
 -- Junction: category_tags (many-to-many relationship between categories and tags)
-CREATE TABLE IF NOT EXISTS category_tags (
-  category_id UUID REFERENCES tag_categories(id) ON DELETE CASCADE,
-  tag_id UUID REFERENCES tags(id) ON DELETE CASCADE,
+CREATE TABLE category_tags (
+  category_id TEXT REFERENCES tag_categories(id) ON DELETE CASCADE,
+  tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
   PRIMARY KEY (category_id, tag_id)
 );
 
 -- Indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_folders_parent_id ON folders(parent_id);
-CREATE INDEX IF NOT EXISTS idx_prompts_folder_id ON prompts(folder_id);
-CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+CREATE INDEX idx_folders_parent_id ON folders(parent_id);
+CREATE INDEX idx_prompts_folder_id ON prompts(folder_id);
+CREATE INDEX idx_tags_name ON tags(name);

@@ -10,6 +10,11 @@ function getSQL() {
   return neon(databaseUrl)
 }
 
+// Generate a random ID
+function generateId() {
+  return Math.random().toString(36).substr(2, 9)
+}
+
 // ============ FOLDERS ============
 
 export async function getFolders(): Promise<Folder[]> {
@@ -22,9 +27,10 @@ export async function getFolders(): Promise<Folder[]> {
 }
 
 export async function createFolder(name: string, parentId: string | null): Promise<Folder> {
+  const id = generateId()
   const rows = await getSQL()`
-    INSERT INTO folders (name, parent_id)
-    VALUES (${name}, ${parentId})
+    INSERT INTO folders (id, name, parent_id)
+    VALUES (${id}, ${name}, ${parentId})
     RETURNING id, name, parent_id as "parentId", created_at as "createdAt", updated_at as "updatedAt"
   `
   return rows[0] as Folder
@@ -34,14 +40,14 @@ export async function updateFolder(id: string, name: string, parentId: string | 
   const rows = await getSQL()`
     UPDATE folders
     SET name = ${name}, parent_id = ${parentId}, updated_at = NOW()
-    WHERE id = ${id}::uuid
+    WHERE id = ${id}
     RETURNING id, name, parent_id as "parentId", created_at as "createdAt", updated_at as "updatedAt"
   `
   return rows[0] as Folder
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  await getSQL()`DELETE FROM folders WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM folders WHERE id = ${id}`
 }
 
 // ============ PROMPTS ============
@@ -74,10 +80,12 @@ export async function createPrompt(
   folderId: string,
   tags: string[]
 ): Promise<Prompt> {
+  const id = generateId()
+
   // Insert the prompt
   const rows = await getSQL()`
-    INSERT INTO prompts (title, content, folder_id)
-    VALUES (${title}, ${content}, ${folderId}::uuid)
+    INSERT INTO prompts (id, title, content, folder_id)
+    VALUES (${id}, ${title}, ${content}, ${folderId})
     RETURNING id, title, content, folder_id as "folderId", created_at as "createdAt", updated_at as "updatedAt"
   `
   const prompt = rows[0] as Prompt
@@ -85,10 +93,11 @@ export async function createPrompt(
 
   // Add tags
   for (const tagName of tags) {
+    const tagId = generateId()
     // Insert tag if not exists
     await getSQL()`
-      INSERT INTO tags (name)
-      VALUES (${tagName.toLowerCase()})
+      INSERT INTO tags (id, name)
+      VALUES (${tagId}, ${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
     // Get tag id
@@ -99,7 +108,7 @@ export async function createPrompt(
       // Link prompt to tag
       await getSQL()`
         INSERT INTO prompt_tags (prompt_id, tag_id)
-        VALUES (${prompt.id}::uuid, ${tagRows[0].id}::uuid)
+        VALUES (${prompt.id}, ${tagRows[0].id})
         ON CONFLICT DO NOTHING
       `
       prompt.tags.push(tagName.toLowerCase())
@@ -119,21 +128,22 @@ export async function updatePrompt(
   // Update the prompt
   const rows = await getSQL()`
     UPDATE prompts
-    SET title = ${title}, content = ${content}, folder_id = ${folderId}::uuid, updated_at = NOW()
-    WHERE id = ${id}::uuid
+    SET title = ${title}, content = ${content}, folder_id = ${folderId}, updated_at = NOW()
+    WHERE id = ${id}
     RETURNING id, title, content, folder_id as "folderId", created_at as "createdAt", updated_at as "updatedAt"
   `
   const prompt = rows[0] as Prompt
   prompt.tags = []
 
   // Remove existing tags
-  await getSQL()`DELETE FROM prompt_tags WHERE prompt_id = ${id}::uuid`
+  await getSQL()`DELETE FROM prompt_tags WHERE prompt_id = ${id}`
 
   // Add new tags
   for (const tagName of tags) {
+    const tagId = generateId()
     await getSQL()`
-      INSERT INTO tags (name)
-      VALUES (${tagName.toLowerCase()})
+      INSERT INTO tags (id, name)
+      VALUES (${tagId}, ${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
     const tagRows = await getSQL()`
@@ -142,7 +152,7 @@ export async function updatePrompt(
     if (tagRows[0]) {
       await getSQL()`
         INSERT INTO prompt_tags (prompt_id, tag_id)
-        VALUES (${prompt.id}::uuid, ${tagRows[0].id}::uuid)
+        VALUES (${prompt.id}, ${tagRows[0].id})
         ON CONFLICT DO NOTHING
       `
       prompt.tags.push(tagName.toLowerCase())
@@ -153,7 +163,7 @@ export async function updatePrompt(
 }
 
 export async function deletePrompt(id: string): Promise<void> {
-  await getSQL()`DELETE FROM prompts WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM prompts WHERE id = ${id}`
 }
 
 // ============ TAGS ============
@@ -164,9 +174,10 @@ export async function getTags(): Promise<string[]> {
 }
 
 export async function createTag(name: string): Promise<string> {
+  const id = generateId()
   await getSQL()`
-    INSERT INTO tags (name)
-    VALUES (${name.toLowerCase()})
+    INSERT INTO tags (id, name)
+    VALUES (${id}, ${name.toLowerCase()})
     ON CONFLICT (name) DO NOTHING
   `
   return name.toLowerCase()
@@ -197,18 +208,20 @@ export async function getTagCategories(): Promise<TagCategory[]> {
 }
 
 export async function createTagCategory(name: string, tags: string[]): Promise<TagCategory> {
+  const id = generateId()
   const rows = await getSQL()`
-    INSERT INTO tag_categories (name)
-    VALUES (${name})
+    INSERT INTO tag_categories (id, name)
+    VALUES (${id}, ${name})
     RETURNING id, name
   `
   const category = rows[0] as TagCategory
   category.tags = []
 
   for (const tagName of tags) {
+    const tagId = generateId()
     await getSQL()`
-      INSERT INTO tags (name)
-      VALUES (${tagName.toLowerCase()})
+      INSERT INTO tags (id, name)
+      VALUES (${tagId}, ${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
     const tagRows = await getSQL()`
@@ -217,7 +230,7 @@ export async function createTagCategory(name: string, tags: string[]): Promise<T
     if (tagRows[0]) {
       await getSQL()`
         INSERT INTO category_tags (category_id, tag_id)
-        VALUES (${category.id}::uuid, ${tagRows[0].id}::uuid)
+        VALUES (${category.id}, ${tagRows[0].id})
         ON CONFLICT DO NOTHING
       `
       category.tags.push(tagName.toLowerCase())
@@ -229,18 +242,19 @@ export async function createTagCategory(name: string, tags: string[]): Promise<T
 
 export async function updateTagCategory(id: string, name: string, tags: string[]): Promise<TagCategory> {
   await getSQL()`
-    UPDATE tag_categories SET name = ${name} WHERE id = ${id}::uuid
+    UPDATE tag_categories SET name = ${name} WHERE id = ${id}
   `
 
   // Remove existing category-tag links
-  await getSQL()`DELETE FROM category_tags WHERE category_id = ${id}::uuid`
+  await getSQL()`DELETE FROM category_tags WHERE category_id = ${id}`
 
   const category: TagCategory = { id, name, tags: [] }
 
   for (const tagName of tags) {
+    const tagId = generateId()
     await getSQL()`
-      INSERT INTO tags (name)
-      VALUES (${tagName.toLowerCase()})
+      INSERT INTO tags (id, name)
+      VALUES (${tagId}, ${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
     const tagRows = await getSQL()`
@@ -249,7 +263,7 @@ export async function updateTagCategory(id: string, name: string, tags: string[]
     if (tagRows[0]) {
       await getSQL()`
         INSERT INTO category_tags (category_id, tag_id)
-        VALUES (${category.id}::uuid, ${tagRows[0].id}::uuid)
+        VALUES (${category.id}, ${tagRows[0].id})
         ON CONFLICT DO NOTHING
       `
       category.tags.push(tagName.toLowerCase())
@@ -260,7 +274,7 @@ export async function updateTagCategory(id: string, name: string, tags: string[]
 }
 
 export async function deleteTagCategory(id: string): Promise<void> {
-  await getSQL()`DELETE FROM tag_categories WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM tag_categories WHERE id = ${id}`
 }
 
 // ============ BULK OPERATIONS ============
@@ -279,7 +293,7 @@ export async function seedDefaultFolders(folders: Array<{ id: string; name: stri
   for (const folder of folders) {
     await getSQL()`
       INSERT INTO folders (id, name, parent_id)
-      VALUES (${folder.id}::uuid, ${folder.name}, ${folder.parentId}::uuid)
+      VALUES (${folder.id}, ${folder.name}, ${folder.parentId})
       ON CONFLICT (id) DO NOTHING
     `
   }
