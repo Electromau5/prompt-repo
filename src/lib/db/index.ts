@@ -1,10 +1,19 @@
-import { sql } from '@vercel/postgres'
+import { neon } from '@neondatabase/serverless'
 import type { Folder, Prompt, TagCategory } from '@/types'
+
+// Create SQL connection lazily
+function getSQL() {
+  const databaseUrl = process.env.DATABASE_URL
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is not set')
+  }
+  return neon(databaseUrl)
+}
 
 // ============ FOLDERS ============
 
 export async function getFolders(): Promise<Folder[]> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     SELECT id, name, parent_id as "parentId", created_at as "createdAt", updated_at as "updatedAt"
     FROM folders
     ORDER BY name
@@ -13,7 +22,7 @@ export async function getFolders(): Promise<Folder[]> {
 }
 
 export async function createFolder(name: string, parentId: string | null): Promise<Folder> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     INSERT INTO folders (name, parent_id)
     VALUES (${name}, ${parentId})
     RETURNING id, name, parent_id as "parentId", created_at as "createdAt", updated_at as "updatedAt"
@@ -22,7 +31,7 @@ export async function createFolder(name: string, parentId: string | null): Promi
 }
 
 export async function updateFolder(id: string, name: string, parentId: string | null): Promise<Folder> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     UPDATE folders
     SET name = ${name}, parent_id = ${parentId}, updated_at = NOW()
     WHERE id = ${id}::uuid
@@ -32,13 +41,13 @@ export async function updateFolder(id: string, name: string, parentId: string | 
 }
 
 export async function deleteFolder(id: string): Promise<void> {
-  await sql`DELETE FROM folders WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM folders WHERE id = ${id}::uuid`
 }
 
 // ============ PROMPTS ============
 
 export async function getPrompts(): Promise<Prompt[]> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     SELECT
       p.id,
       p.title,
@@ -66,7 +75,7 @@ export async function createPrompt(
   tags: string[]
 ): Promise<Prompt> {
   // Insert the prompt
-  const { rows } = await sql`
+  const rows = await getSQL()`
     INSERT INTO prompts (title, content, folder_id)
     VALUES (${title}, ${content}, ${folderId}::uuid)
     RETURNING id, title, content, folder_id as "folderId", created_at as "createdAt", updated_at as "updatedAt"
@@ -77,18 +86,18 @@ export async function createPrompt(
   // Add tags
   for (const tagName of tags) {
     // Insert tag if not exists
-    await sql`
+    await getSQL()`
       INSERT INTO tags (name)
       VALUES (${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
     // Get tag id
-    const { rows: tagRows } = await sql`
+    const tagRows = await getSQL()`
       SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
     `
     if (tagRows[0]) {
       // Link prompt to tag
-      await sql`
+      await getSQL()`
         INSERT INTO prompt_tags (prompt_id, tag_id)
         VALUES (${prompt.id}::uuid, ${tagRows[0].id}::uuid)
         ON CONFLICT DO NOTHING
@@ -108,7 +117,7 @@ export async function updatePrompt(
   tags: string[]
 ): Promise<Prompt> {
   // Update the prompt
-  const { rows } = await sql`
+  const rows = await getSQL()`
     UPDATE prompts
     SET title = ${title}, content = ${content}, folder_id = ${folderId}::uuid, updated_at = NOW()
     WHERE id = ${id}::uuid
@@ -118,20 +127,20 @@ export async function updatePrompt(
   prompt.tags = []
 
   // Remove existing tags
-  await sql`DELETE FROM prompt_tags WHERE prompt_id = ${id}::uuid`
+  await getSQL()`DELETE FROM prompt_tags WHERE prompt_id = ${id}::uuid`
 
   // Add new tags
   for (const tagName of tags) {
-    await sql`
+    await getSQL()`
       INSERT INTO tags (name)
       VALUES (${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
-    const { rows: tagRows } = await sql`
+    const tagRows = await getSQL()`
       SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
     `
     if (tagRows[0]) {
-      await sql`
+      await getSQL()`
         INSERT INTO prompt_tags (prompt_id, tag_id)
         VALUES (${prompt.id}::uuid, ${tagRows[0].id}::uuid)
         ON CONFLICT DO NOTHING
@@ -144,18 +153,18 @@ export async function updatePrompt(
 }
 
 export async function deletePrompt(id: string): Promise<void> {
-  await sql`DELETE FROM prompts WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM prompts WHERE id = ${id}::uuid`
 }
 
 // ============ TAGS ============
 
 export async function getTags(): Promise<string[]> {
-  const { rows } = await sql`SELECT name FROM tags ORDER BY name`
-  return rows.map(r => r.name)
+  const rows = await getSQL()`SELECT name FROM tags ORDER BY name`
+  return rows.map(r => r.name as string)
 }
 
 export async function createTag(name: string): Promise<string> {
-  await sql`
+  await getSQL()`
     INSERT INTO tags (name)
     VALUES (${name.toLowerCase()})
     ON CONFLICT (name) DO NOTHING
@@ -164,13 +173,13 @@ export async function createTag(name: string): Promise<string> {
 }
 
 export async function deleteTag(name: string): Promise<void> {
-  await sql`DELETE FROM tags WHERE name = ${name.toLowerCase()}`
+  await getSQL()`DELETE FROM tags WHERE name = ${name.toLowerCase()}`
 }
 
 // ============ TAG CATEGORIES ============
 
 export async function getTagCategories(): Promise<TagCategory[]> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     SELECT
       tc.id,
       tc.name,
@@ -188,7 +197,7 @@ export async function getTagCategories(): Promise<TagCategory[]> {
 }
 
 export async function createTagCategory(name: string, tags: string[]): Promise<TagCategory> {
-  const { rows } = await sql`
+  const rows = await getSQL()`
     INSERT INTO tag_categories (name)
     VALUES (${name})
     RETURNING id, name
@@ -197,16 +206,16 @@ export async function createTagCategory(name: string, tags: string[]): Promise<T
   category.tags = []
 
   for (const tagName of tags) {
-    await sql`
+    await getSQL()`
       INSERT INTO tags (name)
       VALUES (${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
-    const { rows: tagRows } = await sql`
+    const tagRows = await getSQL()`
       SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
     `
     if (tagRows[0]) {
-      await sql`
+      await getSQL()`
         INSERT INTO category_tags (category_id, tag_id)
         VALUES (${category.id}::uuid, ${tagRows[0].id}::uuid)
         ON CONFLICT DO NOTHING
@@ -219,26 +228,26 @@ export async function createTagCategory(name: string, tags: string[]): Promise<T
 }
 
 export async function updateTagCategory(id: string, name: string, tags: string[]): Promise<TagCategory> {
-  await sql`
+  await getSQL()`
     UPDATE tag_categories SET name = ${name} WHERE id = ${id}::uuid
   `
 
   // Remove existing category-tag links
-  await sql`DELETE FROM category_tags WHERE category_id = ${id}::uuid`
+  await getSQL()`DELETE FROM category_tags WHERE category_id = ${id}::uuid`
 
   const category: TagCategory = { id, name, tags: [] }
 
   for (const tagName of tags) {
-    await sql`
+    await getSQL()`
       INSERT INTO tags (name)
       VALUES (${tagName.toLowerCase()})
       ON CONFLICT (name) DO NOTHING
     `
-    const { rows: tagRows } = await sql`
+    const tagRows = await getSQL()`
       SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
     `
     if (tagRows[0]) {
-      await sql`
+      await getSQL()`
         INSERT INTO category_tags (category_id, tag_id)
         VALUES (${category.id}::uuid, ${tagRows[0].id}::uuid)
         ON CONFLICT DO NOTHING
@@ -251,7 +260,7 @@ export async function updateTagCategory(id: string, name: string, tags: string[]
 }
 
 export async function deleteTagCategory(id: string): Promise<void> {
-  await sql`DELETE FROM tag_categories WHERE id = ${id}::uuid`
+  await getSQL()`DELETE FROM tag_categories WHERE id = ${id}::uuid`
 }
 
 // ============ BULK OPERATIONS ============
@@ -268,7 +277,7 @@ export async function getAllData() {
 
 export async function seedDefaultFolders(folders: Array<{ id: string; name: string; parentId: string | null }>) {
   for (const folder of folders) {
-    await sql`
+    await getSQL()`
       INSERT INTO folders (id, name, parent_id)
       VALUES (${folder.id}::uuid, ${folder.name}, ${folder.parentId}::uuid)
       ON CONFLICT (id) DO NOTHING
