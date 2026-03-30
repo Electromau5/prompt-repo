@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -268,7 +268,11 @@ export default function PromptRepository() {
     firstOptionLabel = 'None (Root level)',
     subfolderOptionLabel = 'Select subfolder...',
     summaryPrefix = 'New folder will be created in:',
+    includeRootInSearch = false,
+    searchPlaceholder = 'Search all folders and subfolders (name or path)…',
   }) => {
+    const [folderSearchQuery, setFolderSearchQuery] = useState('');
+
     const getAncestorPath = (folderId) => {
       const path = [];
       let currentId = folderId;
@@ -283,6 +287,68 @@ export default function PromptRepository() {
       }
       return path;
     };
+
+    const query = folderSearchQuery.trim().toLowerCase();
+    const filteredSearchResults = useMemo(() => {
+      const raw = folderSearchQuery.trim();
+      if (!raw) return [];
+
+      const tokenize = (s) =>
+        s
+          .toLowerCase()
+          .split(/[\s/]+/)
+          .filter(Boolean);
+
+      const matchesUniversalFolderQuery = (pathLabel, segmentNames, rawQuery) => {
+        const tokens = tokenize(rawQuery);
+        if (tokens.length === 0) return false;
+        const haystack = [pathLabel.toLowerCase(), ...segmentNames.map((x) => x.toLowerCase())].join(' ');
+        return tokens.every((tok) => haystack.includes(tok));
+      };
+
+      const rootOptionMatchesQuery = (rawQuery) => {
+        const tokens = tokenize(rawQuery);
+        if (tokens.length === 0) return false;
+        const label = firstOptionLabel.toLowerCase();
+        if (tokens.every((t) => label.includes(t))) return true;
+        if (tokens.length === 1 && ['root', '/', 'top', 'none'].includes(tokens[0])) return true;
+        return false;
+      };
+
+      const pathPartsForFolder = (folderId) => {
+        const segments = [];
+        let id = folderId;
+        while (id) {
+          const f = folders.find((x) => x.id === id);
+          if (!f) break;
+          segments.unshift(f.name);
+          id = f.parentId;
+        }
+        return { pathLabel: segments.join(' / '), segments };
+      };
+      const rows = [];
+      const seen = new Set();
+      if (includeRootInSearch && rootOptionMatchesQuery(folderSearchQuery)) {
+        rows.push({ id: null, label: firstOptionLabel });
+        seen.add(null);
+      }
+      // Full flat list: every root and nested subfolder is a row in `folders`.
+      for (const f of folders) {
+        const { pathLabel, segments } = pathPartsForFolder(f.id);
+        const segmentNames = segments.length > 0 ? segments : [f.name];
+        if (matchesUniversalFolderQuery(pathLabel || f.name, segmentNames, folderSearchQuery)) {
+          if (!seen.has(f.id)) {
+            seen.add(f.id);
+            rows.push({ id: f.id, label: pathLabel || f.name });
+          }
+        }
+      }
+      return rows.sort((a, b) => {
+        if (a.id === null) return -1;
+        if (b.id === null) return 1;
+        return a.label.localeCompare(b.label, undefined, { sensitivity: 'base' });
+      });
+    }, [folderSearchQuery, folders, includeRootInSearch, firstOptionLabel]);
 
     const ancestorPath = selectedFolderId ? getAncestorPath(selectedFolderId) : [];
     const rootFolders = folders.filter(f => f.parentId === null);
@@ -311,6 +377,42 @@ export default function PromptRepository() {
 
     return (
       <div className="space-y-2">
+        <div className="relative">
+          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+          <input
+            type="search"
+            value={folderSearchQuery}
+            onChange={(e) => setFolderSearchQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full bg-zinc-900 border border-zinc-700 rounded pl-8 pr-3 py-2 text-sm placeholder:text-zinc-500"
+            aria-label="Search folders"
+          />
+          {query ? (
+            <ul
+              className="absolute z-20 mt-1 max-h-48 w-full overflow-auto rounded border border-zinc-600 bg-zinc-900 py-1 shadow-lg"
+              role="listbox"
+            >
+              {filteredSearchResults.length === 0 ? (
+                <li className="px-3 py-2 text-xs text-zinc-500">No matching folders</li>
+              ) : (
+                filteredSearchResults.map((row) => (
+                  <li key={row.id === null ? '__root__' : row.id} role="option">
+                    <button
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-zinc-700 rounded-sm"
+                      onClick={() => {
+                        onSelect(row.id);
+                        setFolderSearchQuery('');
+                      }}
+                    >
+                      {row.id === null ? <span className="text-zinc-300">{row.label}</span> : row.label}
+                    </button>
+                  </li>
+                ))
+              )}
+            </ul>
+          ) : null}
+        </div>
         {levels.map((level, index) => {
           const selectedAtThisLevel = index < ancestorPath.length ? ancestorPath[index]?.id : (index === ancestorPath.length ? selectedFolderId : '');
           const hasSubfolders = level.folders.length > 0;
@@ -1083,6 +1185,7 @@ export default function PromptRepository() {
                 selectedFolderId={newFolderParent}
                 onSelect={(folderId) => setNewFolderParent(folderId)}
                 folders={data.folders}
+                includeRootInSearch
               />
             </div>
             <div className="flex justify-end gap-2">
