@@ -7,8 +7,8 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "dev": "node scripts/vite-dev.mjs --clearScreen false",
-    "dev:debug": "node scripts/vite-dev.mjs --clearScreen false -d",
+    "dev": "vite --clearScreen false",
+    "dev:debug": "DEBUG=vite:* vite --clearScreen false",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -23,7 +23,7 @@
     "@tailwindcss/vite": "^4.2.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.1",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
