@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -117,6 +117,7 @@ export default function PromptRepository() {
   const [renameFolder, setRenameFolder] = useState(null);
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [createdFolderIdForPrompt, setCreatedFolderIdForPrompt] = useState(null);
+  const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
 
   const showNotif = (message) => {
     setNotification(message);
@@ -1012,6 +1013,104 @@ export default function PromptRepository() {
     });
   };
 
+  // Grid view component for folders
+  const FolderGrid = () => {
+    const rootFolders = getChildFolders(null).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
+
+    const FolderCard = ({ folder, depth = 0 }) => {
+      const prompts = getFilteredPrompts(folder.id);
+      const childFolders = getChildFolders(folder.id).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
+      const isExpanded = expandedFolders.has(folder.id);
+      const totalPrompts = prompts.length + childFolders.reduce((acc, cf) => acc + getFilteredPrompts(cf.id).length, 0);
+
+      return (
+        <div
+          className={`bg-zinc-800 border border-zinc-700 rounded-lg overflow-hidden hover:border-zinc-600 transition-colors ${depth === 0 ? '' : 'mt-2'}`}
+        >
+          <div
+            onClick={() => toggleFolder(folder.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setContextMenu({ x: e.clientX, y: e.clientY, folderId: folder.id, folderName: folder.name });
+            }}
+            className="p-4 cursor-pointer group"
+          >
+            <div className="flex items-start justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <Folder size={20} className="text-yellow-500" />
+                {editingFolder === folder.id ? (
+                  <input
+                    autoFocus
+                    defaultValue={folder.name}
+                    className="bg-zinc-900 border border-zinc-600 px-2 py-0.5 rounded text-sm"
+                    onClick={(e) => e.stopPropagation()}
+                    onBlur={(e) => updateFolder(folder.id, e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') updateFolder(folder.id, e.target.value); }}
+                  />
+                ) : (
+                  <span className="font-medium">{folder.name}</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {isExpanded ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronRight size={16} className="text-zinc-400" />}
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-zinc-500">
+              <span>{prompts.length} prompt{prompts.length !== 1 ? 's' : ''}</span>
+              {childFolders.length > 0 && <span>{childFolders.length} subfolder{childFolders.length !== 1 ? 's' : ''}</span>}
+            </div>
+            <div className="hidden group-hover:flex items-center gap-1 mt-3 pt-3 border-t border-zinc-700">
+              <button onClick={(e) => { e.stopPropagation(); setNewPromptFolder(folder.id); setShowNewPrompt(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add prompt"><Plus size={14} /></button>
+              <button onClick={(e) => { e.stopPropagation(); setNewFolderParent(folder.id); setShowNewFolder(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add subfolder"><FolderPlus size={14} /></button>
+              <button onClick={(e) => { e.stopPropagation(); setEditingFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Rename"><Edit2 size={14} /></button>
+              <button onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-red-400" title="Delete"><Trash2 size={14} /></button>
+            </div>
+          </div>
+
+          {isExpanded && (
+            <div className="border-t border-zinc-700 p-3 bg-zinc-900/50">
+              {/* Prompts in this folder */}
+              {prompts.length > 0 && (
+                <div className="space-y-2 mb-3">
+                  {prompts.map(prompt => (
+                    <PromptAccordion key={prompt.id} prompt={prompt} />
+                  ))}
+                </div>
+              )}
+              {/* Subfolders */}
+              {childFolders.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {childFolders.map(cf => (
+                    <FolderCard key={cf.id} folder={cf} depth={depth + 1} />
+                  ))}
+                </div>
+              )}
+              {prompts.length === 0 && childFolders.length === 0 && (
+                <div className="text-center text-zinc-500 text-sm py-4">
+                  <p>Empty folder</p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setNewPromptFolder(folder.id); setShowNewPrompt(true); }}
+                    className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                  >
+                    Add a prompt
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {rootFolders.map(folder => (
+          <FolderCard key={folder.id} folder={folder} />
+        ))}
+      </div>
+    );
+  };
+
   const getInheritedTags = (folderId) => {
     if (!folderId) return [];
     const folderPrompts = data.prompts.filter(p => p.folderId === folderId);
@@ -1233,6 +1332,23 @@ export default function PromptRepository() {
           <button type="button" onClick={expandAllFolders} className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg">Expand All Folders</button>
           <button type="button" onClick={collapseAllFolders} className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg">Collapse All Folders</button>
           <div className="h-6 w-px bg-zinc-700" />
+          <div className="flex items-center bg-zinc-800 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+              title="List view"
+            >
+              <List size={16} />
+            </button>
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+              title="Grid view"
+            >
+              <LayoutGrid size={16} />
+            </button>
+          </div>
+          <div className="h-6 w-px bg-zinc-700" />
           <button onClick={() => { setShowNewFolder(true); setNewFolderParent(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"><FolderPlus size={14} /> Folder</button>
           <button onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"><Plus size={14} /> Prompt</button>
           <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg"><Upload size={14} /> Bulk Import</button>
@@ -1286,7 +1402,7 @@ export default function PromptRepository() {
 
       {/* Main Content */}
       <div className="px-6 py-6">
-        <div className="max-w-5xl mx-auto space-y-1">
+        <div className={`max-w-5xl mx-auto ${viewMode === 'list' ? 'space-y-1' : ''}`}>
           {loading ? (
             <div className="text-center text-zinc-500 py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
@@ -1294,7 +1410,7 @@ export default function PromptRepository() {
             </div>
           ) : (
             <>
-              <FolderAccordion />
+              {viewMode === 'list' ? <FolderAccordion /> : <FolderGrid />}
               {data.folders.length === 0 && (
                 <div className="text-center text-zinc-500 py-12">
                   <Folder size={48} className="mx-auto mb-4 opacity-50" />
