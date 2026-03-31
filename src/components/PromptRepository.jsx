@@ -919,6 +919,13 @@ export default function PromptRepository() {
           {isExpanded ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronRight size={16} className="text-zinc-400" />}
           <FileText size={14} className="text-blue-400" />
           <span className="flex-1 text-sm font-medium truncate">{prompt.title}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); copyPrompt(prompt.content, prompt.id); }}
+            className={`p-1.5 rounded transition-colors ${copiedId === prompt.id ? 'bg-green-600 text-white' : 'hover:bg-zinc-600 text-zinc-400 hover:text-white'}`}
+            title={copiedId === prompt.id ? 'Copied!' : 'Copy prompt'}
+          >
+            {copiedId === prompt.id ? <Check size={14} /> : <Copy size={14} />}
+          </button>
           <div className="flex items-center gap-1">
             {prompt.tags.slice(0, 2).map(tag => (
               <span key={tag} className="text-xs px-1.5 py-0.5 bg-zinc-700 rounded">{tag}</span>
