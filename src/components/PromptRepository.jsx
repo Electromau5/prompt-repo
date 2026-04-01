@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -571,6 +571,30 @@ export default function PromptRepository() {
     });
   };
 
+  const toggleAllPromptsInFolder = (folderId) => {
+    const folderPrompts = getFilteredPrompts(folderId);
+    const promptIds = folderPrompts.map(p => p.id);
+    const allExpanded = promptIds.every(id => expandedPrompts.has(id));
+
+    setExpandedPrompts(prev => {
+      const next = new Set(prev);
+      if (allExpanded) {
+        // Collapse all prompts in this folder
+        promptIds.forEach(id => next.delete(id));
+      } else {
+        // Expand all prompts in this folder
+        promptIds.forEach(id => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const areAllPromptsExpanded = (folderId) => {
+    const folderPrompts = getFilteredPrompts(folderId);
+    if (folderPrompts.length === 0) return false;
+    return folderPrompts.every(p => expandedPrompts.has(p.id));
+  };
+
   const expandAllFolders = () => {
     setExpandedFolders(new Set(data.folders.map(f => f.id)));
   };
@@ -1002,6 +1026,21 @@ export default function PromptRepository() {
 
           {isExpanded && (
             <div className="ml-6 mt-1 space-y-1">
+              {prompts.length > 0 && (
+                <div className="flex items-center justify-end mb-1">
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleAllPromptsInFolder(folder.id); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                    title={areAllPromptsExpanded(folder.id) ? 'Collapse all prompts' : 'Expand all prompts'}
+                  >
+                    {areAllPromptsExpanded(folder.id) ? (
+                      <><ChevronsDownUp size={14} /> Collapse all</>
+                    ) : (
+                      <><ChevronsUpDown size={14} /> Expand all</>
+                    )}
+                  </button>
+                </div>
+              )}
               {prompts.map(prompt => (
                 <PromptAccordion key={prompt.id} prompt={prompt} />
               ))}
@@ -1071,10 +1110,25 @@ export default function PromptRepository() {
             <div className="border-t border-zinc-700 p-3 bg-zinc-900/50">
               {/* Prompts in this folder */}
               {prompts.length > 0 && (
-                <div className="space-y-2 mb-3">
-                  {prompts.map(prompt => (
-                    <PromptAccordion key={prompt.id} prompt={prompt} />
-                  ))}
+                <div className="mb-3">
+                  <div className="flex items-center justify-end mb-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleAllPromptsInFolder(folder.id); }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                      title={areAllPromptsExpanded(folder.id) ? 'Collapse all prompts' : 'Expand all prompts'}
+                    >
+                      {areAllPromptsExpanded(folder.id) ? (
+                        <><ChevronsDownUp size={14} /> Collapse all</>
+                      ) : (
+                        <><ChevronsUpDown size={14} /> Expand all</>
+                      )}
+                    </button>
+                  </div>
+                  <div className="space-y-2">
+                    {prompts.map(prompt => (
+                      <PromptAccordion key={prompt.id} prompt={prompt} />
+                    ))}
+                  </div>
                 </div>
               )}
               {/* Subfolders */}
