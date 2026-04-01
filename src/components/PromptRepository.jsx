@@ -170,7 +170,7 @@ export default function PromptRepository() {
             }
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     } else if (ext === 'csv') {
       const lines = content.split('\n');
       const header = lines[0]?.toLowerCase();
@@ -865,7 +865,7 @@ export default function PromptRepository() {
             const newParentId = folderIdMap[f.parentId];
             const key = `${f.name}-${newParentId}`;
             const existing = data.folders.find(ef => `${ef.name}-${ef.parentId}` === key) ||
-                           newFolders.find(nf => `${nf.name}-${nf.parentId}` === key);
+              newFolders.find(nf => `${nf.name}-${nf.parentId}` === key);
             if (existing) {
               folderIdMap[f.id] = existing.id;
             } else {
@@ -928,7 +928,7 @@ export default function PromptRepository() {
       try {
         const imported = JSON.parse(ev.target.result);
         if (imported.folders && imported.prompts) setData(imported);
-      } catch (err) {}
+      } catch (err) { }
     };
     reader.readAsText(file);
   };
@@ -1379,7 +1379,16 @@ export default function PromptRepository() {
         <div className="max-w-5xl mx-auto flex items-center gap-3">
           <div className="flex-1 relative">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-800 rounded-lg pl-10 pr-4 py-2 text-sm" placeholder="Search prompts..." />
+            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-800 rounded-lg pl-10 pr-10 py-2 text-sm" placeholder="Search prompts..." />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                title="Clear search"
+              >
+                <X size={16} />
+              </button>
+            )}
           </div>
           <button onClick={() => setShowTagManager(!showTagManager)} className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${showTagManager ? 'bg-blue-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}><Tag size={14} /> Tags</button>
           <div className="h-6 w-px bg-zinc-700" />
@@ -1729,8 +1738,8 @@ export default function PromptRepository() {
                 if (!movingPrompt.search) return true;
                 return getFolderPath(f.id).toLowerCase().includes(movingPrompt.search.toLowerCase());
               }).length === 0 && (
-                <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
-              )}
+                  <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
+                )}
             </div>
             <div className="flex justify-end">
               <button onClick={() => setMovingPrompt(null)} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
