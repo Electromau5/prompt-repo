@@ -1,0 +1,24 @@
+{
+  "name": "prompt-repo-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Prompt Repository - allows Claude to access and manage prompts",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "@neondatabase/serverless": "^0.10.4",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
