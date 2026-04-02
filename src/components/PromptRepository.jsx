@@ -118,6 +118,9 @@ export default function PromptRepository() {
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [createdFolderIdForPrompt, setCreatedFolderIdForPrompt] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [selectedPrompts, setSelectedPrompts] = useState(new Set());
+  const [showBulkMove, setShowBulkMove] = useState(false);
+  const [bulkMoveSearch, setBulkMoveSearch] = useState('');
 
   const showNotif = (message) => {
     setNotification(message);
@@ -750,6 +753,86 @@ export default function PromptRepository() {
     }
   };
 
+  // Bulk selection helpers
+  const togglePromptSelection = (promptId) => {
+    setSelectedPrompts(prev => {
+      const next = new Set(prev);
+      if (next.has(promptId)) {
+        next.delete(promptId);
+      } else {
+        next.add(promptId);
+      }
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedPrompts(new Set());
+  };
+
+  const selectAllInFolder = (folderId) => {
+    const folderPrompts = data.prompts.filter(p => p.folderId === folderId);
+    setSelectedPrompts(prev => {
+      const next = new Set(prev);
+      folderPrompts.forEach(p => next.add(p.id));
+      return next;
+    });
+  };
+
+  // Bulk actions
+  const bulkDeletePrompts = async () => {
+    if (selectedPrompts.size === 0) return;
+
+    const count = selectedPrompts.size;
+    if (!confirm(`Are you sure you want to delete ${count} prompt${count > 1 ? 's' : ''}? This cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      for (const promptId of selectedPrompts) {
+        await api.deletePrompt(promptId);
+      }
+      setData(d => ({
+        ...d,
+        prompts: d.prompts.filter(p => !selectedPrompts.has(p.id))
+      }));
+      showNotif(`Deleted ${count} prompt${count > 1 ? 's' : ''}`);
+      clearSelection();
+    } catch (e) {
+      console.error('Failed to delete prompts:', e);
+      showNotif('Failed to delete some prompts');
+    }
+  };
+
+  const bulkMovePrompts = async (targetFolderId) => {
+    if (selectedPrompts.size === 0) return;
+
+    const count = selectedPrompts.size;
+    const targetFolder = data.folders.find(f => f.id === targetFolderId);
+
+    try {
+      for (const promptId of selectedPrompts) {
+        const prompt = data.prompts.find(p => p.id === promptId);
+        if (prompt && prompt.folderId !== targetFolderId) {
+          await api.updatePrompt(promptId, prompt.title, prompt.content, targetFolderId, prompt.tags);
+        }
+      }
+      setData(d => ({
+        ...d,
+        prompts: d.prompts.map(p =>
+          selectedPrompts.has(p.id) ? { ...p, folderId: targetFolderId } : p
+        )
+      }));
+      showNotif(`Moved ${count} prompt${count > 1 ? 's' : ''} to "${targetFolder?.name}"`);
+      clearSelection();
+      setShowBulkMove(false);
+      setExpandedFolders(prev => new Set([...prev, targetFolderId]));
+    } catch (e) {
+      console.error('Failed to move prompts:', e);
+      showNotif('Failed to move some prompts');
+    }
+  };
+
   const exportData = () => {
     try {
       const exportPayload = {
@@ -935,12 +1018,20 @@ export default function PromptRepository() {
 
   const PromptAccordion = ({ prompt }) => {
     const isExpanded = expandedPrompts.has(prompt.id);
+    const isSelected = selectedPrompts.has(prompt.id);
     return (
-      <div className="border border-zinc-700 rounded-lg overflow-hidden bg-zinc-800/50">
+      <div className={`border rounded-lg overflow-hidden bg-zinc-800/50 ${isSelected ? 'border-blue-500 bg-blue-500/10' : 'border-zinc-700'}`}>
         <div
           onClick={() => togglePrompt(prompt.id)}
           className="flex items-center gap-2 px-3 py-2.5 cursor-pointer hover:bg-zinc-700/50 transition-colors"
         >
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={(e) => { e.stopPropagation(); togglePromptSelection(prompt.id); }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-4 h-4 rounded border-zinc-600 bg-zinc-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-0 cursor-pointer"
+          />
           {isExpanded ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronRight size={16} className="text-zinc-400" />}
           <FileText size={14} className="text-blue-400" />
           <span className="flex-1 text-sm font-medium truncate">{prompt.title}</span>
@@ -1363,6 +1454,40 @@ export default function PromptRepository() {
           <Check size={16} /> {notification}
         </div>
       )}
+
+      {/* Bulk Action Bar */}
+      {selectedPrompts.size > 0 && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-800 border-t border-zinc-700 px-6 py-3 shadow-lg">
+          <div className="max-w-5xl mx-auto flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium">
+                {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={clearSelection}
+                className="text-sm text-zinc-400 hover:text-white"
+              >
+                Clear selection
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setShowBulkMove(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"
+              >
+                <Move size={14} /> Move to folder
+              </button>
+              <button
+                onClick={bulkDeletePrompts}
+                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 rounded-lg"
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-zinc-800 px-6 py-4">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
@@ -1743,6 +1868,69 @@ export default function PromptRepository() {
             </div>
             <div className="flex justify-end">
               <button onClick={() => setMovingPrompt(null)} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Move Modal */}
+      {showBulkMove && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg p-4 w-96">
+            <h3 className="font-semibold mb-1">Move Prompts</h3>
+            <p className="text-sm text-zinc-400 mb-4">
+              Move {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} to a folder
+            </p>
+            <div className="relative mb-3">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                placeholder="Search folders..."
+                className="w-full bg-zinc-900 rounded px-3 py-2 pl-9 text-sm"
+                onChange={(e) => setBulkMoveSearch(e.target.value)}
+                value={bulkMoveSearch}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-64 overflow-auto bg-zinc-900 rounded-lg mb-4">
+              {getSortedFoldersHierarchically()
+                .filter(f => {
+                  if (!bulkMoveSearch) return true;
+                  return getFolderPath(f.id).toLowerCase().includes(bulkMoveSearch.toLowerCase());
+                })
+                .map(f => {
+                  // Check if all selected prompts are already in this folder
+                  const selectedPromptsList = Array.from(selectedPrompts);
+                  const allInThisFolder = selectedPromptsList.every(pid => {
+                    const prompt = data.prompts.find(p => p.id === pid);
+                    return prompt?.folderId === f.id;
+                  });
+                  return (
+                    <button
+                      key={f.id}
+                      disabled={allInThisFolder}
+                      onClick={() => {
+                        bulkMovePrompts(f.id);
+                        setBulkMoveSearch('');
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${allInThisFolder ? 'opacity-50 cursor-not-allowed bg-zinc-800' : 'hover:bg-zinc-700'}`}
+                    >
+                      <span style={{ width: `${f.depth * 16}px` }} className="flex-shrink-0" />
+                      <Folder size={14} className="text-yellow-500 flex-shrink-0" />
+                      <span className="truncate">{f.name}</span>
+                      {allInThisFolder && <span className="ml-auto text-xs text-zinc-500 flex-shrink-0">(all here)</span>}
+                    </button>
+                  );
+                })}
+              {getSortedFoldersHierarchically().filter(f => {
+                if (!bulkMoveSearch) return true;
+                return getFolderPath(f.id).toLowerCase().includes(bulkMoveSearch.toLowerCase());
+              }).length === 0 && (
+                  <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
+                )}
+            </div>
+            <div className="flex justify-end">
+              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); }} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
             </div>
           </div>
         </div>
