@@ -121,6 +121,7 @@ export default function PromptRepository() {
   const [selectedPrompts, setSelectedPrompts] = useState(new Set());
   const [showBulkMove, setShowBulkMove] = useState(false);
   const [bulkMoveSearch, setBulkMoveSearch] = useState('');
+  const [bulkMoveNewFolder, setBulkMoveNewFolder] = useState({ show: false, parentId: null, name: '' });
 
   const showNotif = (message) => {
     setNotification(message);
@@ -830,6 +831,22 @@ export default function PromptRepository() {
     } catch (e) {
       console.error('Failed to move prompts:', e);
       showNotif('Failed to move some prompts');
+    }
+  };
+
+  const createFolderInBulkMove = async () => {
+    const { name, parentId } = bulkMoveNewFolder;
+    if (!name.trim()) return;
+
+    try {
+      const newFolder = await api.createFolder(name.trim(), parentId);
+      setData(d => ({ ...d, folders: [...d.folders, newFolder] }));
+      if (parentId) setExpandedFolders(prev => new Set([...prev, parentId]));
+      setBulkMoveNewFolder({ show: false, parentId: null, name: '' });
+      showNotif(`Created folder "${name.trim()}"`);
+    } catch (e) {
+      console.error('Failed to create folder:', e);
+      showNotif('Failed to create folder');
     }
   };
 
@@ -1893,6 +1910,33 @@ export default function PromptRepository() {
               />
             </div>
             <div className="max-h-64 overflow-auto bg-zinc-900 rounded-lg mb-4">
+              {/* New root folder button */}
+              <button
+                onClick={() => setBulkMoveNewFolder({ show: true, parentId: null, name: '' })}
+                className="w-full text-left px-3 py-2 text-sm flex items-center gap-2 hover:bg-zinc-700 text-blue-400 border-b border-zinc-700"
+              >
+                <FolderPlus size={14} />
+                <span>Create new folder</span>
+              </button>
+              {/* Inline new folder form for root level */}
+              {bulkMoveNewFolder.show && bulkMoveNewFolder.parentId === null && (
+                <div className="px-3 py-2 bg-zinc-800 border-b border-zinc-700">
+                  <div className="flex items-center gap-2">
+                    <Folder size={14} className="text-yellow-500 flex-shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Folder name..."
+                      value={bulkMoveNewFolder.name}
+                      onChange={(e) => setBulkMoveNewFolder(prev => ({ ...prev, name: e.target.value }))}
+                      onKeyDown={(e) => { if (e.key === 'Enter') createFolderInBulkMove(); if (e.key === 'Escape') setBulkMoveNewFolder({ show: false, parentId: null, name: '' }); }}
+                      className="flex-1 bg-zinc-900 rounded px-2 py-1 text-sm"
+                      autoFocus
+                    />
+                    <button onClick={createFolderInBulkMove} className="p-1 hover:bg-zinc-600 rounded text-green-400"><Check size={14} /></button>
+                    <button onClick={() => setBulkMoveNewFolder({ show: false, parentId: null, name: '' })} className="p-1 hover:bg-zinc-600 rounded text-zinc-400"><X size={14} /></button>
+                  </div>
+                </div>
+              )}
               {getSortedFoldersHierarchically()
                 .filter(f => {
                   if (!bulkMoveSearch) return true;
@@ -1905,32 +1949,67 @@ export default function PromptRepository() {
                     const prompt = data.prompts.find(p => p.id === pid);
                     return prompt?.folderId === f.id;
                   });
+                  const isCreatingSubfolder = bulkMoveNewFolder.show && bulkMoveNewFolder.parentId === f.id;
                   return (
-                    <button
-                      key={f.id}
-                      disabled={allInThisFolder}
-                      onClick={() => {
-                        bulkMovePrompts(f.id);
-                        setBulkMoveSearch('');
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 ${allInThisFolder ? 'opacity-50 cursor-not-allowed bg-zinc-800' : 'hover:bg-zinc-700'}`}
-                    >
-                      <span style={{ width: `${f.depth * 16}px` }} className="flex-shrink-0" />
-                      <Folder size={14} className="text-yellow-500 flex-shrink-0" />
-                      <span className="truncate">{f.name}</span>
-                      {allInThisFolder && <span className="ml-auto text-xs text-zinc-500 flex-shrink-0">(all here)</span>}
-                    </button>
+                    <div key={f.id}>
+                      <div
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center gap-2 group ${allInThisFolder ? 'opacity-50 bg-zinc-800' : 'hover:bg-zinc-700'}`}
+                      >
+                        <span style={{ width: `${f.depth * 16}px` }} className="flex-shrink-0" />
+                        <Folder size={14} className="text-yellow-500 flex-shrink-0" />
+                        <button
+                          disabled={allInThisFolder}
+                          onClick={() => {
+                            bulkMovePrompts(f.id);
+                            setBulkMoveSearch('');
+                          }}
+                          className={`flex-1 text-left truncate ${allInThisFolder ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                        >
+                          {f.name}
+                        </button>
+                        {allInThisFolder && <span className="text-xs text-zinc-500 flex-shrink-0">(all here)</span>}
+                        {!allInThisFolder && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setBulkMoveNewFolder({ show: true, parentId: f.id, name: '' }); }}
+                            className="p-1 hover:bg-zinc-600 rounded opacity-0 group-hover:opacity-100 transition-opacity text-blue-400"
+                            title="Create subfolder"
+                          >
+                            <Plus size={12} />
+                          </button>
+                        )}
+                      </div>
+                      {/* Inline new subfolder form */}
+                      {isCreatingSubfolder && (
+                        <div className="px-3 py-2 bg-zinc-800">
+                          <div className="flex items-center gap-2">
+                            <span style={{ width: `${(f.depth + 1) * 16}px` }} className="flex-shrink-0" />
+                            <Folder size={14} className="text-yellow-500 flex-shrink-0" />
+                            <input
+                              type="text"
+                              placeholder="Subfolder name..."
+                              value={bulkMoveNewFolder.name}
+                              onChange={(e) => setBulkMoveNewFolder(prev => ({ ...prev, name: e.target.value }))}
+                              onKeyDown={(e) => { if (e.key === 'Enter') createFolderInBulkMove(); if (e.key === 'Escape') setBulkMoveNewFolder({ show: false, parentId: null, name: '' }); }}
+                              className="flex-1 bg-zinc-900 rounded px-2 py-1 text-sm"
+                              autoFocus
+                            />
+                            <button onClick={createFolderInBulkMove} className="p-1 hover:bg-zinc-600 rounded text-green-400"><Check size={14} /></button>
+                            <button onClick={() => setBulkMoveNewFolder({ show: false, parentId: null, name: '' })} className="p-1 hover:bg-zinc-600 rounded text-zinc-400"><X size={14} /></button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   );
                 })}
               {getSortedFoldersHierarchically().filter(f => {
                 if (!bulkMoveSearch) return true;
                 return getFolderPath(f.id).toLowerCase().includes(bulkMoveSearch.toLowerCase());
-              }).length === 0 && (
+              }).length === 0 && !bulkMoveNewFolder.show && (
                   <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
                 )}
             </div>
             <div className="flex justify-end">
-              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); }} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
+              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); setBulkMoveNewFolder({ show: false, parentId: null, name: '' }); }} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
             </div>
           </div>
         </div>
