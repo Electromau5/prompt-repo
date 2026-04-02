@@ -118,6 +118,7 @@ export default function PromptRepository() {
   const [renameFolderValue, setRenameFolderValue] = useState('');
   const [createdFolderIdForPrompt, setCreatedFolderIdForPrompt] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
+  const [gridEditMode, setGridEditMode] = useState(false);
   const [selectedPrompts, setSelectedPrompts] = useState(new Set());
   const [showBulkMove, setShowBulkMove] = useState(false);
   const [bulkMoveSearch, setBulkMoveSearch] = useState('');
@@ -1182,7 +1183,7 @@ export default function PromptRepository() {
             }}
             className="p-4 cursor-pointer group"
           >
-            <div className="flex items-start justify-between mb-2">
+            <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
                 <Folder size={20} className="text-yellow-500" />
                 {editingFolder === folder.id ? (
@@ -1199,18 +1200,20 @@ export default function PromptRepository() {
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {gridEditMode && (
+                  <>
+                    <button onClick={(e) => { e.stopPropagation(); setNewPromptFolder(folder.id); setShowNewPrompt(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add prompt"><Plus size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setNewFolderParent(folder.id); setShowNewFolder(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add subfolder"><FolderPlus size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); setEditingFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Rename"><Edit2 size={14} /></button>
+                    <button onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-red-400" title="Delete"><Trash2 size={14} /></button>
+                  </>
+                )}
                 {isExpanded ? <ChevronDown size={16} className="text-zinc-400" /> : <ChevronRight size={16} className="text-zinc-400" />}
               </div>
             </div>
             <div className="flex items-center gap-3 text-xs text-zinc-500">
               <span>{prompts.length} prompt{prompts.length !== 1 ? 's' : ''}</span>
               {childFolders.length > 0 && <span>{childFolders.length} subfolder{childFolders.length !== 1 ? 's' : ''}</span>}
-            </div>
-            <div className="hidden group-hover:flex items-center gap-1 mt-3 pt-3 border-t border-zinc-700">
-              <button onClick={(e) => { e.stopPropagation(); setNewPromptFolder(folder.id); setShowNewPrompt(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add prompt"><Plus size={14} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setNewFolderParent(folder.id); setShowNewFolder(true); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Add subfolder"><FolderPlus size={14} /></button>
-              <button onClick={(e) => { e.stopPropagation(); setEditingFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-zinc-400 hover:text-white" title="Rename"><Edit2 size={14} /></button>
-              <button onClick={(e) => { e.stopPropagation(); deleteFolder(folder.id); }} className="p-1.5 hover:bg-zinc-600 rounded text-red-400" title="Delete"><Trash2 size={14} /></button>
             </div>
           </div>
 
@@ -1553,6 +1556,16 @@ export default function PromptRepository() {
               <LayoutGrid size={16} />
             </button>
           </div>
+          {viewMode === 'grid' && (
+            <button
+              onClick={() => setGridEditMode(!gridEditMode)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${gridEditMode ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+              title="Toggle edit mode"
+            >
+              <Edit2 size={14} />
+              <span>Edit</span>
+            </button>
+          )}
           <div className="h-6 w-px bg-zinc-700" />
           <button onClick={() => { setShowNewFolder(true); setNewFolderParent(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"><FolderPlus size={14} /> Folder</button>
           <button onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"><Plus size={14} /> Prompt</button>
