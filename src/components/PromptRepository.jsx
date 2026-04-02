@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -123,6 +123,8 @@ export default function PromptRepository() {
   const [showBulkMove, setShowBulkMove] = useState(false);
   const [bulkMoveSearch, setBulkMoveSearch] = useState('');
   const [bulkMoveNewFolder, setBulkMoveNewFolder] = useState({ show: false, parentId: null, name: '' });
+  const [showMergeDuplicates, setShowMergeDuplicates] = useState(false);
+  const [duplicateFolders, setDuplicateFolders] = useState([]);
 
   const showNotif = (message) => {
     setNotification(message);
@@ -787,6 +789,90 @@ export default function PromptRepository() {
     } catch (e) {
       console.error('Failed to delete folder:', e);
       showNotif('Failed to delete folder');
+    }
+  };
+
+  // Find folders with duplicate names (case-insensitive)
+  const findDuplicateFolders = () => {
+    const foldersByName = {};
+    data.folders.forEach(folder => {
+      const normalizedName = folder.name.toLowerCase().trim();
+      if (!foldersByName[normalizedName]) {
+        foldersByName[normalizedName] = [];
+      }
+      foldersByName[normalizedName].push(folder);
+    });
+
+    // Filter to only groups with more than one folder
+    const duplicates = Object.entries(foldersByName)
+      .filter(([_, folders]) => folders.length > 1)
+      .map(([name, folders]) => ({
+        name: folders[0].name, // Use original case from first folder
+        folders: folders.map(f => ({
+          ...f,
+          promptCount: data.prompts.filter(p => p.folderId === f.id).length,
+          subfolderCount: data.folders.filter(sf => sf.parentId === f.id).length,
+          path: getFolderPath(f.id)
+        })),
+        targetId: folders[0].id // Default to first folder as merge target
+      }));
+
+    return duplicates;
+  };
+
+  const openMergeDuplicates = () => {
+    const duplicates = findDuplicateFolders();
+    setDuplicateFolders(duplicates);
+    setShowMergeDuplicates(true);
+  };
+
+  const setMergeTarget = (groupIndex, targetId) => {
+    setDuplicateFolders(prev => prev.map((group, i) =>
+      i === groupIndex ? { ...group, targetId } : group
+    ));
+  };
+
+  const executeMergeDuplicates = async () => {
+    let totalMerged = 0;
+    let totalPromptsMoved = 0;
+    let totalSubfoldersMoved = 0;
+
+    try {
+      for (const group of duplicateFolders) {
+        const targetId = group.targetId;
+        const foldersToMerge = group.folders.filter(f => f.id !== targetId);
+
+        for (const folder of foldersToMerge) {
+          // Move all prompts from this folder to target
+          const promptsToMove = data.prompts.filter(p => p.folderId === folder.id);
+          for (const prompt of promptsToMove) {
+            await api.updatePrompt(prompt.id, prompt.title, prompt.content, targetId, prompt.tags || []);
+            totalPromptsMoved++;
+          }
+
+          // Move all direct subfolders from this folder to target
+          const subfoldersToMove = data.folders.filter(f => f.parentId === folder.id);
+          for (const subfolder of subfoldersToMove) {
+            await api.updateFolder(subfolder.id, subfolder.name, targetId);
+            totalSubfoldersMoved++;
+          }
+
+          // Delete the now-empty folder
+          await api.deleteFolder(folder.id);
+          totalMerged++;
+        }
+      }
+
+      // Reload data to get fresh state
+      const freshData = await api.getData();
+      setData(freshData);
+
+      setShowMergeDuplicates(false);
+      setDuplicateFolders([]);
+      showNotif(`Merged ${totalMerged} folders, moved ${totalPromptsMoved} prompts and ${totalSubfoldersMoved} subfolders`);
+    } catch (e) {
+      console.error('Failed to merge folders:', e);
+      showNotif('Failed to merge some folders');
     }
   };
 
@@ -1618,6 +1704,7 @@ export default function PromptRepository() {
           <div className="flex items-center gap-2">
             <button onClick={exportData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Download full backup"><Download size={14} /> Backup</button>
             <button onClick={() => setShowBackupRestore(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Restore from backup"><Upload size={14} /> Restore</button>
+            <button onClick={openMergeDuplicates} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Merge duplicate folders"><GitMerge size={14} /> Merge Duplicates</button>
           </div>
         </div>
       </div>
@@ -2373,6 +2460,84 @@ export default function PromptRepository() {
                   : `Import ${bulkImportData.prompts.filter(p => p.selected !== false).length} Prompts`
                 }
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Merge Duplicates Modal */}
+      {showMergeDuplicates && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+              <h2 className="font-semibold">Merge Duplicate Folders</h2>
+              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
+            </div>
+            <div className="p-4 overflow-auto flex-1">
+              {duplicateFolders.length === 0 ? (
+                <div className="text-center py-8">
+                  <GitMerge size={48} className="mx-auto mb-4 text-zinc-600" />
+                  <p className="text-zinc-400">No duplicate folders found!</p>
+                  <p className="text-sm text-zinc-500 mt-2">All your folders have unique names.</p>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <p className="text-sm text-zinc-400">
+                    Found {duplicateFolders.length} group{duplicateFolders.length !== 1 ? 's' : ''} of folders with identical names.
+                    Select which folder to keep for each group - all prompts and subfolders will be merged into it.
+                  </p>
+                  {duplicateFolders.map((group, groupIndex) => (
+                    <div key={groupIndex} className="bg-zinc-900 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Folder size={16} className="text-yellow-500" />
+                        <span className="font-medium">{group.name}</span>
+                        <span className="text-xs text-zinc-500">({group.folders.length} duplicates)</span>
+                      </div>
+                      <div className="space-y-2">
+                        {group.folders.map((folder) => (
+                          <label
+                            key={folder.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                              group.targetId === folder.id
+                                ? 'bg-blue-600/20 border border-blue-500/50'
+                                : 'bg-zinc-800 hover:bg-zinc-700 border border-transparent'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name={`merge-target-${groupIndex}`}
+                              checked={group.targetId === folder.id}
+                              onChange={() => setMergeTarget(groupIndex, folder.id)}
+                              className="text-blue-500"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium truncate">{folder.path}</div>
+                              <div className="flex items-center gap-3 text-xs text-zinc-500 mt-1">
+                                <span>{folder.promptCount} prompt{folder.promptCount !== 1 ? 's' : ''}</span>
+                                <span>{folder.subfolderCount} subfolder{folder.subfolderCount !== 1 ? 's' : ''}</span>
+                              </div>
+                            </div>
+                            {group.targetId === folder.id && (
+                              <span className="text-xs bg-blue-600 px-2 py-1 rounded">Keep</span>
+                            )}
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
+              {duplicateFolders.length > 0 && (
+                <button
+                  onClick={executeMergeDuplicates}
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded flex items-center gap-2"
+                >
+                  <GitMerge size={14} /> Merge {duplicateFolders.reduce((acc, g) => acc + g.folders.length - 1, 0)} Folders
+                </button>
+              )}
             </div>
           </div>
         </div>
