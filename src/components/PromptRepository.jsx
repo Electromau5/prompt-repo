@@ -126,6 +126,7 @@ export default function PromptRepository() {
   const [showMergeDuplicates, setShowMergeDuplicates] = useState(false);
   const [duplicateFolders, setDuplicateFolders] = useState([]);
   const [expandedDuplicateGroups, setExpandedDuplicateGroups] = useState(new Set());
+  const [mergeScopeParentId, setMergeScopeParentId] = useState(null); // null = global, folderId = scoped to that folder's children
 
   const showNotif = (message) => {
     setNotification(message);
@@ -794,9 +795,14 @@ export default function PromptRepository() {
   };
 
   // Find folders with duplicate names (case-insensitive)
-  const findDuplicateFolders = () => {
+  // If parentId is provided, only look at direct children of that folder
+  const findDuplicateFolders = (scopeParentId = null) => {
     const foldersByName = {};
-    data.folders.forEach(folder => {
+    const foldersToCheck = scopeParentId !== null
+      ? data.folders.filter(f => f.parentId === scopeParentId)
+      : data.folders;
+
+    foldersToCheck.forEach(folder => {
       const normalizedName = folder.name.toLowerCase().trim();
       if (!foldersByName[normalizedName]) {
         foldersByName[normalizedName] = [];
@@ -821,9 +827,17 @@ export default function PromptRepository() {
     return duplicates;
   };
 
-  const openMergeDuplicates = () => {
-    const duplicates = findDuplicateFolders();
+  // Check if a folder has duplicate subfolders
+  const hasDuplicateSubfolders = (folderId) => {
+    const children = data.folders.filter(f => f.parentId === folderId);
+    const names = children.map(f => f.name.toLowerCase().trim());
+    return names.length !== new Set(names).size;
+  };
+
+  const openMergeDuplicates = (scopeParentId = null) => {
+    const duplicates = findDuplicateFolders(scopeParentId);
     setDuplicateFolders(duplicates);
+    setMergeScopeParentId(scopeParentId);
     // Expand all groups by default
     setExpandedDuplicateGroups(new Set(duplicates.map((_, i) => i)));
     setShowMergeDuplicates(true);
@@ -938,6 +952,7 @@ export default function PromptRepository() {
       setShowMergeDuplicates(false);
       setDuplicateFolders([]);
       setExpandedDuplicateGroups(new Set());
+      setMergeScopeParentId(null);
       showNotif(`Merged ${totalMerged} folders, moved ${totalPromptsMoved} prompts and ${totalSubfoldersMoved} subfolders`);
     } catch (e) {
       console.error('Failed to merge folders:', e);
@@ -1393,8 +1408,17 @@ export default function PromptRepository() {
 
           {isExpanded && (
             <div className="ml-6 mt-1 space-y-1">
-              {prompts.length > 0 && (
-                <div className="flex items-center justify-end mb-1">
+              <div className="flex items-center justify-end gap-2 mb-1">
+                {hasDuplicateSubfolders(folder.id) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openMergeDuplicates(folder.id); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-orange-400 hover:text-orange-300 hover:bg-zinc-700 rounded transition-colors"
+                    title="Merge duplicate subfolders"
+                  >
+                    <GitMerge size={14} /> Merge duplicates
+                  </button>
+                )}
+                {prompts.length > 0 && (
                   <button
                     onClick={(e) => { e.stopPropagation(); toggleAllPromptsInFolder(folder.id); }}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
@@ -1406,8 +1430,8 @@ export default function PromptRepository() {
                       <><ChevronsUpDown size={14} /> Expand all</>
                     )}
                   </button>
-                </div>
-              )}
+                )}
+              </div>
               {prompts.map(prompt => (
                 <PromptAccordion key={prompt.id} prompt={prompt} />
               ))}
@@ -1477,22 +1501,34 @@ export default function PromptRepository() {
 
           {isExpanded && (
             <div className="border-t border-zinc-700 p-3 bg-zinc-900/50">
+              {/* Action buttons */}
+              <div className="flex items-center justify-end gap-2 mb-2">
+                {hasDuplicateSubfolders(folder.id) && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); openMergeDuplicates(folder.id); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-orange-400 hover:text-orange-300 hover:bg-zinc-700 rounded transition-colors"
+                    title="Merge duplicate subfolders"
+                  >
+                    <GitMerge size={14} /> Merge duplicates
+                  </button>
+                )}
+                {prompts.length > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleAllPromptsInFolder(folder.id); }}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                    title={areAllPromptsExpanded(folder.id) ? 'Collapse all prompts' : 'Expand all prompts'}
+                  >
+                    {areAllPromptsExpanded(folder.id) ? (
+                      <><ChevronsDownUp size={14} /> Collapse all</>
+                    ) : (
+                      <><ChevronsUpDown size={14} /> Expand all</>
+                    )}
+                  </button>
+                )}
+              </div>
               {/* Prompts in this folder */}
               {prompts.length > 0 && (
                 <div className="mb-3">
-                  <div className="flex items-center justify-end mb-2">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); toggleAllPromptsInFolder(folder.id); }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
-                      title={areAllPromptsExpanded(folder.id) ? 'Collapse all prompts' : 'Expand all prompts'}
-                    >
-                      {areAllPromptsExpanded(folder.id) ? (
-                        <><ChevronsDownUp size={14} /> Collapse all</>
-                      ) : (
-                        <><ChevronsUpDown size={14} /> Expand all</>
-                      )}
-                    </button>
-                  </div>
                   <div className="space-y-2">
                     {prompts.map(prompt => (
                       <PromptAccordion key={prompt.id} prompt={prompt} />
@@ -2539,21 +2575,28 @@ export default function PromptRepository() {
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-zinc-700">
-              <h2 className="font-semibold">Merge Duplicate Folders</h2>
-              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
+              <div>
+                <h2 className="font-semibold">Merge Duplicate {mergeScopeParentId ? 'Subfolders' : 'Folders'}</h2>
+                {mergeScopeParentId && (
+                  <p className="text-xs text-zinc-500 mt-1">
+                    in "{data.folders.find(f => f.id === mergeScopeParentId)?.name}"
+                  </p>
+                )}
+              </div>
+              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); setMergeScopeParentId(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
             <div className="p-4 overflow-auto flex-1">
               {duplicateFolders.length === 0 ? (
                 <div className="text-center py-8">
                   <GitMerge size={48} className="mx-auto mb-4 text-zinc-600" />
-                  <p className="text-zinc-400">No duplicate folders found!</p>
-                  <p className="text-sm text-zinc-500 mt-2">All your folders have unique names.</p>
+                  <p className="text-zinc-400">No duplicate {mergeScopeParentId ? 'subfolders' : 'folders'} found!</p>
+                  <p className="text-sm text-zinc-500 mt-2">All {mergeScopeParentId ? 'subfolders' : 'folders'} have unique names.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-sm text-zinc-400">
-                      Found {duplicateFolders.length} group{duplicateFolders.length !== 1 ? 's' : ''} of folders with identical names.
+                      Found {duplicateFolders.length} group{duplicateFolders.length !== 1 ? 's' : ''} of {mergeScopeParentId ? 'subfolders' : 'folders'} with identical names.
                     </p>
                     <div className="flex gap-2">
                       <button
@@ -2642,7 +2685,7 @@ export default function PromptRepository() {
               )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
-              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Close</button>
+              <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); setMergeScopeParentId(null); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Close</button>
               {duplicateFolders.length > 0 && (
                 <button
                   onClick={executeMergeDuplicates}
