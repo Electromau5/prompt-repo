@@ -131,6 +131,7 @@ export default function PromptRepository() {
   const [showDuplicatePrompts, setShowDuplicatePrompts] = useState(false);
   const [duplicatePromptGroups, setDuplicatePromptGroups] = useState([]);
   const [duplicatePromptsFolderId, setDuplicatePromptsFolderId] = useState(null);
+  const [showFabMenu, setShowFabMenu] = useState(false);
 
   const showNotif = (message) => {
     setNotification(message);
@@ -751,6 +752,18 @@ export default function PromptRepository() {
   const collapseAllFolders = () => {
     setExpandedFolders(new Set());
     setExpandedPrompts(new Set());
+  };
+
+  const areAllFoldersExpanded = () => {
+    return data.folders.length > 0 && expandedFolders.size === data.folders.length;
+  };
+
+  const toggleAllFolders = () => {
+    if (areAllFoldersExpanded()) {
+      collapseAllFolders();
+    } else {
+      expandAllFolders();
+    }
   };
 
   const copyPrompt = (content, id) => {
@@ -1970,10 +1983,15 @@ export default function PromptRepository() {
               </button>
             )}
           </div>
-          <button onClick={() => setShowTagManager(!showTagManager)} className={`px-3 py-2 rounded-lg text-sm flex items-center gap-2 ${showTagManager ? 'bg-blue-600' : 'bg-zinc-800 hover:bg-zinc-700'}`}><Tag size={14} /> Tags</button>
-          <div className="h-6 w-px bg-zinc-700" />
-          <button type="button" onClick={expandAllFolders} className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg">Expand All Folders</button>
-          <button type="button" onClick={collapseAllFolders} className="px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg">Collapse All Folders</button>
+          <button
+            type="button"
+            onClick={toggleAllFolders}
+            className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"
+            title={areAllFoldersExpanded() ? 'Collapse all folders' : 'Expand all folders'}
+          >
+            {areAllFoldersExpanded() ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+            {areAllFoldersExpanded() ? 'Collapse' : 'Expand'}
+          </button>
           <div className="h-6 w-px bg-zinc-700" />
           <div className="flex items-center bg-zinc-800 rounded-lg p-1">
             <button
@@ -2001,34 +2019,18 @@ export default function PromptRepository() {
               <span>Edit</span>
             </button>
           )}
-          <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1">
-            <ArrowUpDown size={14} className="text-zinc-500 ml-2" />
-            <button
-              onClick={() => setFolderSort('name')}
-              className={`px-2 py-1 text-xs rounded ${folderSort === 'name' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-              title="Sort by name"
+          <div className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-1.5">
+            <ArrowUpDown size={14} className="text-zinc-500" />
+            <select
+              value={folderSort}
+              onChange={(e) => setFolderSort(e.target.value)}
+              className="bg-transparent text-sm text-zinc-300 cursor-pointer focus:outline-none"
             >
-              Name
-            </button>
-            <button
-              onClick={() => setFolderSort('prompts')}
-              className={`px-2 py-1 text-xs rounded ${folderSort === 'prompts' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-              title="Sort by total prompts"
-            >
-              Prompts
-            </button>
-            <button
-              onClick={() => setFolderSort('subfolders')}
-              className={`px-2 py-1 text-xs rounded ${folderSort === 'subfolders' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-              title="Sort by total subfolders"
-            >
-              Subfolders
-            </button>
+              <option value="name" className="bg-zinc-800">Name</option>
+              <option value="prompts" className="bg-zinc-800">Prompts</option>
+              <option value="subfolders" className="bg-zinc-800">Subfolders</option>
+            </select>
           </div>
-          <div className="h-6 w-px bg-zinc-700" />
-          <button onClick={() => { setShowNewFolder(true); setNewFolderParent(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"><FolderPlus size={14} /> Folder</button>
-          <button onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"><Plus size={14} /> Prompt</button>
-          <button onClick={() => setShowBulkImport(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 hover:bg-purple-700 rounded-lg"><Upload size={14} /> Bulk Import</button>
         </div>
       </div>
 
@@ -2099,6 +2101,46 @@ export default function PromptRepository() {
           )}
         </div>
       </div>
+
+      {/* Floating Action Button */}
+      <div className="fixed bottom-6 right-6 z-40">
+        {showFabMenu && (
+          <div className="absolute bottom-16 right-0 flex flex-col gap-2 items-end mb-2">
+            <button
+              onClick={() => { setShowBulkImport(true); setShowFabMenu(false); }}
+              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+            >
+              <Upload size={16} /> Bulk Import
+            </button>
+            <button
+              onClick={() => { setShowNewFolder(true); setNewFolderParent(null); setShowFabMenu(false); }}
+              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg shadow-lg text-sm whitespace-nowrap"
+            >
+              <FolderPlus size={16} /> New Folder
+            </button>
+            <button
+              onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); setShowFabMenu(false); }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+            >
+              <Plus size={16} /> New Prompt
+            </button>
+          </div>
+        )}
+        <button
+          onClick={() => setShowFabMenu(!showFabMenu)}
+          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${showFabMenu ? 'bg-zinc-600 rotate-45' : 'bg-blue-600 hover:bg-blue-700'}`}
+        >
+          <Plus size={24} />
+        </button>
+      </div>
+
+      {/* Click outside to close FAB menu */}
+      {showFabMenu && (
+        <div
+          className="fixed inset-0 z-30"
+          onClick={() => setShowFabMenu(false)}
+        />
+      )}
 
       {/* Modals */}
       {showNewPrompt && (
