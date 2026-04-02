@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -119,6 +119,7 @@ export default function PromptRepository() {
   const [createdFolderIdForPrompt, setCreatedFolderIdForPrompt] = useState(null);
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'grid'
   const [gridEditMode, setGridEditMode] = useState(false);
+  const [folderSort, setFolderSort] = useState('name'); // 'name', 'prompts', 'subfolders'
   const [selectedPrompts, setSelectedPrompts] = useState(new Set());
   const [showBulkMove, setShowBulkMove] = useState(false);
   const [bulkMoveSearch, setBulkMoveSearch] = useState('');
@@ -667,6 +668,39 @@ export default function PromptRepository() {
       const matchesTags = selectedTags.length === 0 || selectedTags.every(t => p.tags.includes(t));
       return matchesFolder && matchesSearch && matchesTags;
     });
+  };
+
+  // Get total prompts count including all nested subfolders (recursive)
+  const getTotalPromptsInFolder = (folderId) => {
+    let count = getFilteredPrompts(folderId).length;
+    const children = getChildFolders(folderId);
+    children.forEach(child => {
+      count += getTotalPromptsInFolder(child.id);
+    });
+    return count;
+  };
+
+  // Get total subfolders count including all nested levels (recursive)
+  const getTotalSubfoldersInFolder = (folderId) => {
+    const children = getChildFolders(folderId);
+    let count = children.length;
+    children.forEach(child => {
+      count += getTotalSubfoldersInFolder(child.id);
+    });
+    return count;
+  };
+
+  // Get sorted child folders based on current sort setting
+  const getSortedChildFolders = (parentId) => {
+    const children = getChildFolders(parentId);
+    if (folderSort === 'name') {
+      return children.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (folderSort === 'prompts') {
+      return children.sort((a, b) => getTotalPromptsInFolder(b.id) - getTotalPromptsInFolder(a.id));
+    } else if (folderSort === 'subfolders') {
+      return children.sort((a, b) => getTotalSubfoldersInFolder(b.id) - getTotalSubfoldersInFolder(a.id));
+    }
+    return children;
   };
 
   const folderHasMatchingContent = (folderId) => {
@@ -1364,10 +1398,12 @@ export default function PromptRepository() {
   };
 
   const FolderAccordion = ({ parentId = null, depth = 0 }) => {
-    const folders = getChildFolders(parentId).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
+    const folders = getSortedChildFolders(parentId).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
 
     return folders.map(folder => {
       const prompts = getFilteredPrompts(folder.id);
+      const totalPrompts = getTotalPromptsInFolder(folder.id);
+      const totalSubfolders = getTotalSubfoldersInFolder(folder.id);
       const isExpanded = expandedFolders.has(folder.id);
       const hasChildren = getChildFolders(folder.id).length > 0 || prompts.length > 0;
 
@@ -1397,7 +1433,9 @@ export default function PromptRepository() {
             ) : (
               <span className="flex-1 font-medium text-sm">{folder.name}</span>
             )}
-            <span className="text-xs text-zinc-500">{prompts.length}</span>
+            <span className="text-xs text-zinc-500" title={`${totalPrompts} total prompts${totalSubfolders > 0 ? `, ${totalSubfolders} subfolders` : ''}`}>
+              {totalPrompts}{totalSubfolders > 0 && <span className="text-zinc-600 ml-1">({totalSubfolders})</span>}
+            </span>
             <div className="hidden group-hover:flex items-center gap-1">
               <button onClick={(e) => { e.stopPropagation(); setNewPromptFolder(folder.id); setShowNewPrompt(true); }} className="p-1 hover:bg-zinc-600 rounded" title="Add prompt"><Plus size={14} /></button>
               <button onClick={(e) => { e.stopPropagation(); setNewFolderParent(folder.id); setShowNewFolder(true); }} className="p-1 hover:bg-zinc-600 rounded" title="Add subfolder"><FolderPlus size={14} /></button>
@@ -1445,13 +1483,14 @@ export default function PromptRepository() {
 
   // Grid view component for folders
   const FolderGrid = () => {
-    const rootFolders = getChildFolders(null).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
+    const rootFolders = getSortedChildFolders(null).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
 
     const FolderCard = ({ folder, depth = 0 }) => {
       const prompts = getFilteredPrompts(folder.id);
-      const childFolders = getChildFolders(folder.id).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
+      const childFolders = getSortedChildFolders(folder.id).filter(f => !searchQuery && selectedTags.length === 0 || folderHasMatchingContent(f.id));
       const isExpanded = expandedFolders.has(folder.id);
-      const totalPrompts = prompts.length + childFolders.reduce((acc, cf) => acc + getFilteredPrompts(cf.id).length, 0);
+      const totalPrompts = getTotalPromptsInFolder(folder.id);
+      const totalSubfolders = getTotalSubfoldersInFolder(folder.id);
 
       return (
         <div
@@ -1494,8 +1533,12 @@ export default function PromptRepository() {
               </div>
             </div>
             <div className="flex items-center gap-3 text-xs text-zinc-500">
-              <span>{prompts.length} prompt{prompts.length !== 1 ? 's' : ''}</span>
-              {childFolders.length > 0 && <span>{childFolders.length} subfolder{childFolders.length !== 1 ? 's' : ''}</span>}
+              <span title={`${totalPrompts} total prompts (${prompts.length} direct)`}>
+                {totalPrompts} prompt{totalPrompts !== 1 ? 's' : ''}{totalPrompts !== prompts.length && <span className="text-zinc-600"> ({prompts.length})</span>}
+              </span>
+              {totalSubfolders > 0 && <span title={`${totalSubfolders} total subfolders (${childFolders.length} direct)`}>
+                {totalSubfolders} subfolder{totalSubfolders !== 1 ? 's' : ''}{totalSubfolders !== childFolders.length && <span className="text-zinc-600"> ({childFolders.length})</span>}
+              </span>}
             </div>
           </div>
 
@@ -1861,6 +1904,30 @@ export default function PromptRepository() {
               <span>Edit</span>
             </button>
           )}
+          <div className="flex items-center gap-1 bg-zinc-800 rounded-lg p-1">
+            <ArrowUpDown size={14} className="text-zinc-500 ml-2" />
+            <button
+              onClick={() => setFolderSort('name')}
+              className={`px-2 py-1 text-xs rounded ${folderSort === 'name' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+              title="Sort by name"
+            >
+              Name
+            </button>
+            <button
+              onClick={() => setFolderSort('prompts')}
+              className={`px-2 py-1 text-xs rounded ${folderSort === 'prompts' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+              title="Sort by total prompts"
+            >
+              Prompts
+            </button>
+            <button
+              onClick={() => setFolderSort('subfolders')}
+              className={`px-2 py-1 text-xs rounded ${folderSort === 'subfolders' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+              title="Sort by total subfolders"
+            >
+              Subfolders
+            </button>
+          </div>
           <div className="h-6 w-px bg-zinc-700" />
           <button onClick={() => { setShowNewFolder(true); setNewFolderParent(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"><FolderPlus size={14} /> Folder</button>
           <button onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); }} className="flex items-center gap-2 px-3 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"><Plus size={14} /> Prompt</button>
