@@ -1241,7 +1241,7 @@ export default function PromptRepository() {
               )}
               {/* Subfolders */}
               {childFolders.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div className="space-y-2">
                   {childFolders.map(cf => (
                     <FolderCard key={cf.id} folder={cf} depth={depth + 1} />
                   ))}
