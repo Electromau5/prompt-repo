@@ -106,7 +106,7 @@ export default function PromptRepository() {
   const [movingPrompt, setMovingPrompt] = useState(null);
   const [showTagCategoryManager, setShowTagCategoryManager] = useState(false);
   const [showBulkImport, setShowBulkImport] = useState(false);
-  const [bulkImportData, setBulkImportData] = useState({ prompts: [], folderId: null, tags: [] });
+  const [bulkImportData, setBulkImportData] = useState({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] });
   const [showBackupRestore, setShowBackupRestore] = useState(false);
   const [backupPreview, setBackupPreview] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -166,6 +166,17 @@ export default function PromptRepository() {
     if (ext === 'json') {
       try {
         const parsed = JSON.parse(content);
+        // Check if this is a full backup with folders and prompts
+        if (parsed.folders && parsed.prompts && Array.isArray(parsed.folders) && Array.isArray(parsed.prompts)) {
+          return {
+            isFullBackup: true,
+            folders: parsed.folders,
+            prompts: parsed.prompts.map(p => ({ ...p, selected: true })),
+            tags: parsed.tags || [],
+            tagCategories: parsed.tagCategories || []
+          };
+        }
+        // Otherwise treat as simple array of prompts
         if (Array.isArray(parsed)) {
           parsed.forEach(item => {
             if (item.title && item.content) {
@@ -242,7 +253,7 @@ export default function PromptRepository() {
       }
     }
 
-    return prompts;
+    return { isFullBackup: false, prompts, folders: [] };
   };
 
   const handleBulkImportFile = (e) => {
@@ -252,38 +263,130 @@ export default function PromptRepository() {
     const reader = new FileReader();
     reader.onload = (ev) => {
       const content = ev.target.result;
-      const prompts = parseImportFile(content, file.name);
-      setBulkImportData(prev => ({ ...prev, prompts, fileName: file.name }));
+      const result = parseImportFile(content, file.name);
+      if (result.isFullBackup) {
+        setBulkImportData({
+          isFullBackup: true,
+          folders: result.folders,
+          prompts: result.prompts,
+          tags: result.tags || [],
+          tagCategories: result.tagCategories || [],
+          folderId: null,
+          fileName: file.name
+        });
+      } else {
+        setBulkImportData(prev => ({
+          ...prev,
+          isFullBackup: false,
+          folders: [],
+          prompts: result.prompts,
+          fileName: file.name
+        }));
+      }
     };
     reader.readAsText(file);
   };
 
-  const executeBulkImport = () => {
+  const executeBulkImport = async () => {
+    // Handle full backup import with folders
+    if (bulkImportData.isFullBackup) {
+      const selectedPrompts = bulkImportData.prompts.filter(p => p.selected !== false);
+      if (selectedPrompts.length === 0) return;
+
+      try {
+        // Create a mapping from old folder IDs to new folder IDs
+        const folderIdMap = {};
+        const createdFolders = [];
+
+        // Sort folders to ensure parents are created before children
+        const sortedFolders = [...bulkImportData.folders].sort((a, b) => {
+          const aDepth = getImportFolderDepth(a, bulkImportData.folders);
+          const bDepth = getImportFolderDepth(b, bulkImportData.folders);
+          return aDepth - bDepth;
+        });
+
+        // Create folders via API
+        for (const folder of sortedFolders) {
+          const newParentId = folder.parentId ? folderIdMap[folder.parentId] : null;
+          const newFolder = await api.createFolder(folder.name, newParentId);
+          folderIdMap[folder.id] = newFolder.id;
+          createdFolders.push(newFolder);
+        }
+
+        // Create prompts via API with mapped folder IDs
+        const createdPrompts = [];
+        for (const prompt of selectedPrompts) {
+          const newFolderId = prompt.folderId ? folderIdMap[prompt.folderId] : null;
+          if (newFolderId) {
+            const newPrompt = await api.createPrompt(prompt.title, prompt.content, newFolderId, prompt.tags || []);
+            createdPrompts.push(newPrompt);
+          }
+        }
+
+        // Update local state
+        const newTags = [...new Set(createdPrompts.flatMap(p => p.tags || []))].filter(t => !data.tags.includes(t));
+        setData(d => ({
+          ...d,
+          folders: [...d.folders, ...createdFolders],
+          prompts: [...d.prompts, ...createdPrompts],
+          tags: [...d.tags, ...newTags]
+        }));
+
+        // Expand root folders
+        const rootFolderIds = createdFolders.filter(f => !f.parentId).map(f => f.id);
+        setExpandedFolders(prev => new Set([...prev, ...rootFolderIds]));
+
+        setShowBulkImport(false);
+        setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] });
+        showNotif(`Imported ${createdFolders.length} folders and ${createdPrompts.length} prompts`);
+      } catch (e) {
+        console.error('Failed to import:', e);
+        showNotif('Failed to import some items');
+      }
+      return;
+    }
+
+    // Handle simple prompts import (existing behavior)
     if (!bulkImportData.folderId || bulkImportData.prompts.length === 0) return;
 
-    const newPrompts = bulkImportData.prompts
-      .filter(p => p.selected !== false)
-      .map(p => ({
-        id: generateId(),
-        title: p.title,
-        content: p.content,
-        folderId: bulkImportData.folderId,
-        tags: [...new Set([...p.tags, ...bulkImportData.tags])]
+    try {
+      const selectedPrompts = bulkImportData.prompts.filter(p => p.selected !== false);
+      const createdPrompts = [];
+
+      for (const p of selectedPrompts) {
+        const tags = [...new Set([...(p.tags || []), ...bulkImportData.tags])];
+        const newPrompt = await api.createPrompt(p.title, p.content, bulkImportData.folderId, tags);
+        createdPrompts.push(newPrompt);
+      }
+
+      const newTags = [...new Set(createdPrompts.flatMap(p => p.tags || []))].filter(t => !data.tags.includes(t));
+
+      setData(d => ({
+        ...d,
+        prompts: [...d.prompts, ...createdPrompts],
+        tags: [...d.tags, ...newTags]
       }));
 
-    const newTags = [...new Set(newPrompts.flatMap(p => p.tags))].filter(t => !data.tags.includes(t));
+      setExpandedFolders(prev => new Set([...prev, bulkImportData.folderId]));
+      setShowBulkImport(false);
+      setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] });
+      showNotif(`Imported ${createdPrompts.length} prompts`);
+    } catch (e) {
+      console.error('Failed to import:', e);
+      showNotif('Failed to import prompts');
+    }
+  };
 
-    setData(d => ({
-      ...d,
-      prompts: [...d.prompts, ...newPrompts],
-      tags: [...d.tags, ...newTags]
-    }));
-
-    setExpandedFolders(prev => new Set([...prev, bulkImportData.folderId]));
-    setShowBulkImport(false);
-    setBulkImportData({ prompts: [], folderId: null, tags: [] });
-    setMoveNotification(`Imported ${newPrompts.length} prompts`);
-    setTimeout(() => setMoveNotification(null), 2500);
+  // Helper function to get folder depth for sorting during import
+  const getImportFolderDepth = (folder, allFolders) => {
+    let depth = 0;
+    let current = folder;
+    while (current.parentId) {
+      depth++;
+      current = allFolders.find(f => f.id === current.parentId);
+      if (!current) break;
+    }
+    return depth;
   };
 
   const toggleBulkImportPrompt = (index) => {
@@ -2034,7 +2137,7 @@ export default function PromptRepository() {
           <div className="bg-zinc-800 rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
             <div className="flex items-center justify-between p-4 border-b border-zinc-700">
               <h2 className="font-semibold">Bulk Import Prompts</h2>
-              <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [] }); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
+              <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] }); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
             <div className="p-4 overflow-auto flex-1">
               {bulkImportData.prompts.length === 0 ? (
@@ -2069,7 +2172,88 @@ export default function PromptRepository() {
                     </div>
                   </div>
                 </div>
+              ) : bulkImportData.isFullBackup ? (
+                /* Full Backup Import UI */
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <span className="px-2 py-1 bg-green-600/20 text-green-400 text-xs rounded mr-2">Full Backup</span>
+                      <span className="text-sm text-zinc-400">from {bulkImportData.fileName}</span>
+                    </div>
+                    <label className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded cursor-pointer">
+                      Choose Different File
+                      <input type="file" accept=".txt,.md,.json,.csv" onChange={handleBulkImportFile} className="hidden" />
+                    </label>
+                  </div>
+
+                  <div className="bg-zinc-900 rounded-lg p-4 mb-4">
+                    <h4 className="text-sm font-medium mb-3">Import Summary</h4>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <Folder size={16} className="text-yellow-500" />
+                        <span>{bulkImportData.folders.length} folder{bulkImportData.folders.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <FileText size={16} className="text-blue-400" />
+                        <span>{bulkImportData.prompts.filter(p => p.selected !== false).length} prompt{bulkImportData.prompts.filter(p => p.selected !== false).length !== 1 ? 's' : ''}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <div className="text-sm text-zinc-400 mb-2">Folders to create:</div>
+                    <div className="bg-zinc-900 rounded-lg p-3 max-h-32 overflow-auto">
+                      {bulkImportData.folders.map((folder, idx) => {
+                        const parent = bulkImportData.folders.find(f => f.id === folder.parentId);
+                        return (
+                          <div key={idx} className="flex items-center gap-2 py-1 text-sm">
+                            <Folder size={14} className="text-yellow-500" />
+                            <span>{folder.name}</span>
+                            {parent && <span className="text-xs text-zinc-500">(in {parent.name})</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-zinc-400">Prompts ({bulkImportData.prompts.filter(p => p.selected !== false).length} selected)</label>
+                      <div className="flex gap-2">
+                        <button onClick={() => setBulkImportData(prev => ({ ...prev, prompts: prev.prompts.map(p => ({ ...p, selected: true })) }))} className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded">Select All</button>
+                        <button onClick={() => setBulkImportData(prev => ({ ...prev, prompts: prev.prompts.map(p => ({ ...p, selected: false })) }))} className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded">Deselect All</button>
+                      </div>
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-auto">
+                      {bulkImportData.prompts.map((prompt, index) => {
+                        const folder = bulkImportData.folders.find(f => f.id === prompt.folderId);
+                        return (
+                          <div
+                            key={index}
+                            onClick={() => toggleBulkImportPrompt(index)}
+                            className={`bg-zinc-900 rounded-lg p-3 cursor-pointer border-2 transition-colors ${prompt.selected === false ? 'border-transparent opacity-50' : 'border-blue-500/50'}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <input
+                                type="checkbox"
+                                checked={prompt.selected !== false}
+                                onChange={() => toggleBulkImportPrompt(index)}
+                                className="mt-1"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="font-medium text-sm truncate">{prompt.title}</div>
+                                {folder && <div className="text-xs text-zinc-500">in {folder.name}</div>}
+                                <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{prompt.content}</div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               ) : (
+                /* Simple Prompts Import UI */
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <div>
@@ -2177,13 +2361,17 @@ export default function PromptRepository() {
               )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
-              <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [] }); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
+              <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] }); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
               <button
                 onClick={executeBulkImport}
-                disabled={!bulkImportData.folderId || bulkImportData.prompts.filter(p => p.selected !== false).length === 0}
+                disabled={bulkImportData.isFullBackup ? bulkImportData.prompts.filter(p => p.selected !== false).length === 0 : (!bulkImportData.folderId || bulkImportData.prompts.filter(p => p.selected !== false).length === 0)}
                 className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                <Download size={14} /> Import {bulkImportData.prompts.filter(p => p.selected !== false).length} Prompts
+                <Download size={14} />
+                {bulkImportData.isFullBackup
+                  ? `Import ${bulkImportData.folders.length} Folders & ${bulkImportData.prompts.filter(p => p.selected !== false).length} Prompts`
+                  : `Import ${bulkImportData.prompts.filter(p => p.selected !== false).length} Prompts`
+                }
               </button>
             </div>
           </div>
