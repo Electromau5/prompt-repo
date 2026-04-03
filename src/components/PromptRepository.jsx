@@ -223,6 +223,7 @@ export default function PromptRepository() {
   const [copiedNoteId, setCopiedNoteId] = useState(null);
   const [showMoveNote, setShowMoveNote] = useState(false);
   const [movingNoteId, setMovingNoteId] = useState(null);
+  const [notesPanelOpen, setNotesPanelOpen] = useState(true);
 
   // Note template types
   const noteTemplates = [
@@ -2388,11 +2389,11 @@ export default function PromptRepository() {
         </div>
 
         {/* Table */}
-        <div className="flex-1 overflow-auto">
-          <table className="w-full border-collapse">
-            <thead>
+        <div className="flex-1 overflow-auto border border-zinc-700 rounded">
+          <table className="border-collapse min-w-full">
+            <thead className="sticky top-0 z-10">
               <tr>
-                <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500">#</th>
+                <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 sticky left-0 z-20">#</th>
                 {spreadsheetData.columns.map((col, colIndex) => (
                   <th key={colIndex} className="bg-zinc-800 border border-zinc-700 p-0 min-w-[120px]">
                     <div className="flex items-center">
@@ -2420,7 +2421,7 @@ export default function PromptRepository() {
             <tbody>
               {spreadsheetData.rows.map((row, rowIndex) => (
                 <tr key={rowIndex} className="group">
-                  <td className="bg-zinc-800/50 border border-zinc-700 p-2 text-xs text-zinc-500 text-center">
+                  <td className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10">
                     {rowIndex + 1}
                   </td>
                   {row.map((cell, colIndex) => (
@@ -2462,18 +2463,39 @@ export default function PromptRepository() {
     return (
       <div className="flex h-full">
         {/* Notes Sidebar */}
-        <div className="w-72 border-r border-zinc-800 flex flex-col bg-zinc-900/50">
-          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-400">Notes ({notebookNotes.length})</span>
-            <button
-              onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); }}
-              className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
-              title="New note"
-            >
-              <Plus size={16} />
-            </button>
+        <div className={`${notesPanelOpen ? 'w-72' : 'w-12'} border-r border-zinc-800 flex flex-col bg-zinc-900/50 transition-all duration-300 flex-shrink-0`}>
+          <div className="p-2 border-b border-zinc-800 flex items-center justify-between">
+            {notesPanelOpen ? (
+              <>
+                <span className="text-sm font-medium text-zinc-400 px-2">Notes ({notebookNotes.length})</span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }}
+                    className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                    title="New note"
+                  >
+                    <Plus size={16} />
+                  </button>
+                  <button
+                    onClick={() => setNotesPanelOpen(false)}
+                    className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                    title="Collapse notes panel"
+                  >
+                    <PanelLeftClose size={16} />
+                  </button>
+                </div>
+              </>
+            ) : (
+              <button
+                onClick={() => setNotesPanelOpen(true)}
+                className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white mx-auto"
+                title="Expand notes panel"
+              >
+                <Menu size={16} />
+              </button>
+            )}
           </div>
-          <div className="flex-1 overflow-auto">
+          {notesPanelOpen && <div className="flex-1 overflow-auto">
             {notebookNotes.length === 0 ? (
               <div className="p-4 text-center text-zinc-500">
                 <FileText size={32} className="mx-auto mb-2 opacity-50" />
@@ -2516,7 +2538,7 @@ export default function PromptRepository() {
                 ))}
               </div>
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Note Editor */}
