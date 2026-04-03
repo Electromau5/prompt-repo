@@ -2393,12 +2393,12 @@ export default function PromptRepository() {
           className="flex-1 border border-zinc-700 rounded spreadsheet-scroll"
           style={{ maxHeight: 'calc(100vh - 280px)' }}
         >
-          <table className="border-collapse" style={{ minWidth: 'max-content' }}>
+          <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 sticky left-0 z-20">#</th>
                 {spreadsheetData.columns.map((col, colIndex) => (
-                  <th key={colIndex} className="bg-zinc-800 border border-zinc-700 p-0 min-w-[120px]">
+                  <th key={colIndex} className="bg-zinc-800 border border-zinc-700 p-0" style={{ minWidth: '150px', width: '150px' }}>
                     <div className="flex items-center">
                       <input
                         type="text"
@@ -2428,7 +2428,7 @@ export default function PromptRepository() {
                     {rowIndex + 1}
                   </td>
                   {row.map((cell, colIndex) => (
-                    <td key={colIndex} className="border border-zinc-700 p-0">
+                    <td key={colIndex} className="border border-zinc-700 p-0" style={{ minWidth: '150px', width: '150px' }}>
                       <input
                         type="text"
                         value={cell}
