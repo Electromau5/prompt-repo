@@ -204,6 +204,60 @@ export const notebookTools = [
       required: ['id', 'rows'],
     },
   },
+  {
+    name: 'move_note',
+    description: 'Move a note to a different notebook',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The note ID to move',
+        },
+        notebook_id: {
+          type: 'string',
+          description: 'The target notebook ID',
+        },
+      },
+      required: ['id', 'notebook_id'],
+    },
+  },
+  {
+    name: 'duplicate_note',
+    description: 'Duplicate a note, optionally to a different notebook',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        id: {
+          type: 'string',
+          description: 'The note ID to duplicate',
+        },
+        notebook_id: {
+          type: 'string',
+          description: 'Target notebook ID (optional, defaults to same notebook)',
+        },
+      },
+      required: ['id'],
+    },
+  },
+  {
+    name: 'convert_prompt_to_note',
+    description: 'Convert an existing prompt into a note with "prompt" template',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        prompt_id: {
+          type: 'string',
+          description: 'The prompt ID to convert',
+        },
+        notebook_id: {
+          type: 'string',
+          description: 'The target notebook ID for the new note',
+        },
+      },
+      required: ['prompt_id', 'notebook_id'],
+    },
+  },
 ];
 
 // Helper to parse spreadsheet content
@@ -535,6 +589,83 @@ export async function handleNotebookTool(
           },
         ],
       };
+    }
+
+    case 'move_note': {
+      const existing = await db.getNote(args.id as string);
+      if (!existing) {
+        return {
+          content: [{ type: 'text', text: `Note not found: ${args.id}` }],
+        };
+      }
+
+      const targetNotebook = await db.getNotebook(args.notebook_id as string);
+      if (!targetNotebook) {
+        return {
+          content: [{ type: 'text', text: `Notebook not found: ${args.notebook_id}` }],
+        };
+      }
+
+      const movedNote = await db.moveNote(args.id as string, args.notebook_id as string);
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Moved note "${movedNote.title}" to notebook "${targetNotebook.name}"\n\n${JSON.stringify(movedNote, null, 2)}`,
+          },
+        ],
+      };
+    }
+
+    case 'duplicate_note': {
+      const existing = await db.getNote(args.id as string);
+      if (!existing) {
+        return {
+          content: [{ type: 'text', text: `Note not found: ${args.id}` }],
+        };
+      }
+
+      const duplicatedNote = await db.duplicateNote(
+        args.id as string,
+        args.notebook_id as string | undefined
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Duplicated note "${existing.title}" as "${duplicatedNote.title}"\n\n${JSON.stringify(duplicatedNote, null, 2)}`,
+          },
+        ],
+      };
+    }
+
+    case 'convert_prompt_to_note': {
+      const targetNotebook = await db.getNotebook(args.notebook_id as string);
+      if (!targetNotebook) {
+        return {
+          content: [{ type: 'text', text: `Notebook not found: ${args.notebook_id}` }],
+        };
+      }
+
+      try {
+        const newNote = await db.convertPromptToNote(
+          args.prompt_id as string,
+          args.notebook_id as string
+        );
+        return {
+          content: [
+            {
+              type: 'text',
+              text: `Converted prompt to note "${newNote.title}" in notebook "${targetNotebook.name}"\n` +
+                `Template: prompt\n\n${JSON.stringify(newNote, null, 2)}`,
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: `Failed to convert prompt: ${error}` }],
+        };
+      }
     }
 
     default:

@@ -69,6 +69,7 @@ CREATE TABLE notes (
   title VARCHAR(255) NOT NULL,
   content TEXT,
   type VARCHAR(50) DEFAULT 'text',
+  template VARCHAR(100) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );

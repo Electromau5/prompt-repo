@@ -132,6 +132,33 @@ const api = {
   async deleteNote(id) {
     const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete note');
+  },
+  async moveNote(id, notebookId) {
+    const res = await fetch(`/api/notes/${id}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notebookId })
+    });
+    if (!res.ok) throw new Error('Failed to move note');
+    return res.json();
+  },
+  async duplicateNote(id, notebookId = null) {
+    const res = await fetch(`/api/notes/${id}/duplicate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notebookId })
+    });
+    if (!res.ok) throw new Error('Failed to duplicate note');
+    return res.json();
+  },
+  async convertPromptToNote(promptId, notebookId) {
+    const res = await fetch(`/api/prompts/${promptId}/convert-to-note`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notebookId })
+    });
+    if (!res.ok) throw new Error('Failed to convert prompt to note');
+    return res.json();
   }
 };
 
@@ -194,6 +221,8 @@ export default function PromptRepository() {
   const [showNewNote, setShowNewNote] = useState(false);
   const [noteForm, setNoteForm] = useState({ title: '', content: '', type: 'text' });
   const [copiedNoteId, setCopiedNoteId] = useState(null);
+  const [showMoveNote, setShowMoveNote] = useState(false);
+  const [movingNoteId, setMovingNoteId] = useState(null);
 
   // Note template types
   const noteTemplates = [
@@ -324,6 +353,41 @@ export default function PromptRepository() {
         console.error('Error deleting note:', e);
         showNotif('Failed to delete note');
       }
+    }
+  };
+
+  const moveNoteToNotebook = async (noteId, targetNotebookId) => {
+    try {
+      const movedNote = await api.moveNote(noteId, targetNotebookId);
+      setNotes(prev => prev.map(n => n.id === noteId ? movedNote : n));
+      showNotif('Note moved successfully');
+    } catch (e) {
+      console.error('Error moving note:', e);
+      showNotif('Failed to move note');
+    }
+  };
+
+  const duplicateNoteToNotebook = async (noteId, targetNotebookId = null) => {
+    try {
+      const duplicatedNote = await api.duplicateNote(noteId, targetNotebookId);
+      setNotes(prev => [...prev, duplicatedNote]);
+      showNotif('Note duplicated successfully');
+      return duplicatedNote;
+    } catch (e) {
+      console.error('Error duplicating note:', e);
+      showNotif('Failed to duplicate note');
+    }
+  };
+
+  const convertPromptToNoteInNotebook = async (promptId, targetNotebookId) => {
+    try {
+      const newNote = await api.convertPromptToNote(promptId, targetNotebookId);
+      setNotes(prev => [...prev, newNote]);
+      showNotif('Prompt converted to note successfully');
+      return newNote;
+    } catch (e) {
+      console.error('Error converting prompt:', e);
+      showNotif('Failed to convert prompt to note');
     }
   };
 
@@ -2500,6 +2564,20 @@ export default function PromptRepository() {
                         </button>
                       )}
                       <button
+                        onClick={() => duplicateNoteToNotebook(currentNote.id)}
+                        className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                        title="Duplicate note"
+                      >
+                        <Copy size={16} />
+                      </button>
+                      <button
+                        onClick={() => { setMovingNoteId(currentNote.id); setShowMoveNote(true); }}
+                        className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                        title="Move to another notebook"
+                      >
+                        <Move size={16} />
+                      </button>
+                      <button
                         onClick={() => deleteNote(currentNote.id)}
                         className="p-2 hover:bg-zinc-700 rounded text-red-400 hover:text-red-300"
                         title="Delete note"
@@ -2903,6 +2981,58 @@ export default function PromptRepository() {
       )}
 
       {/* Modals */}
+
+      {/* Move Note Modal */}
+      {showMoveNote && movingNoteId && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-800 rounded-lg w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Move size={20} className="text-blue-500" />
+                Move Note to Notebook
+              </h2>
+              <button onClick={() => { setShowMoveNote(false); setMovingNoteId(null); }} className="p-1 hover:bg-zinc-700 rounded">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm text-zinc-400 mb-4">
+                Select a notebook to move "{notes.find(n => n.id === movingNoteId)?.title}" to:
+              </p>
+              <div className="space-y-2 max-h-64 overflow-auto">
+                {notebooks.filter(n => n.type !== 'prompts' && n.id !== notes.find(note => note.id === movingNoteId)?.notebookId).map(notebook => (
+                  <button
+                    key={notebook.id}
+                    onClick={async () => {
+                      await moveNoteToNotebook(movingNoteId, notebook.id);
+                      setShowMoveNote(false);
+                      setMovingNoteId(null);
+                      setActiveNotebook(notebook.id);
+                    }}
+                    className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-700 text-left transition-colors"
+                  >
+                    <Notebook size={18} className="text-purple-500" />
+                    <span>{notebook.name}</span>
+                  </button>
+                ))}
+                {notebooks.filter(n => n.type !== 'prompts' && n.id !== notes.find(note => note.id === movingNoteId)?.notebookId).length === 0 && (
+                  <p className="text-zinc-500 text-sm text-center py-4">
+                    No other notebooks available. Create a new notebook first.
+                  </p>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+              <button
+                onClick={() => { setShowMoveNote(false); setMovingNoteId(null); }}
+                className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Notebook Modal */}
       {showNewNotebook && (

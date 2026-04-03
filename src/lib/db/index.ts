@@ -338,7 +338,7 @@ export async function deleteNotebook(id: string): Promise<void> {
 
 export async function getNotes(): Promise<Note[]> {
   const rows = await getSQL()`
-    SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
     FROM notes
     ORDER BY created_at DESC
   `
@@ -349,13 +349,14 @@ export async function createNote(
   notebookId: string,
   title: string,
   content: string,
-  type: string = 'text'
+  type: string = 'text',
+  template: string | null = null
 ): Promise<Note> {
   const id = generateId()
   const rows = await getSQL()`
-    INSERT INTO notes (id, notebook_id, title, content, type)
-    VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type})
-    RETURNING id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    INSERT INTO notes (id, notebook_id, title, content, type, template)
+    VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type}, ${template})
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `
   return rows[0] as Note
 }
@@ -369,11 +370,51 @@ export async function updateNote(
     UPDATE notes
     SET title = ${title}, content = ${content}, updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
+  `
+  return rows[0] as Note
+}
+
+export async function moveNote(id: string, newNotebookId: string): Promise<Note> {
+  const rows = await getSQL()`
+    UPDATE notes
+    SET notebook_id = ${newNotebookId}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
+  `
+  return rows[0] as Note
+}
+
+export async function duplicateNote(id: string, targetNotebookId?: string): Promise<Note> {
+  const newId = generateId()
+  const rows = await getSQL()`
+    INSERT INTO notes (id, notebook_id, title, content, type, template)
+    SELECT ${newId}, COALESCE(${targetNotebookId}, notebook_id), title || ' (Copy)', content, type, template
+    FROM notes WHERE id = ${id}
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `
   return rows[0] as Note
 }
 
 export async function deleteNote(id: string): Promise<void> {
   await getSQL()`DELETE FROM notes WHERE id = ${id}`
+}
+
+// Convert a prompt to a note with Prompt template
+export async function convertPromptToNote(promptId: string, notebookId: string): Promise<Note> {
+  const prompt = await getSQL()`
+    SELECT id, title, content, folder_id as "folderId"
+    FROM prompts WHERE id = ${promptId}
+  `
+  if (!prompt[0]) {
+    throw new Error('Prompt not found')
+  }
+
+  const noteId = generateId()
+  const rows = await getSQL()`
+    INSERT INTO notes (id, notebook_id, title, content, type, template)
+    VALUES (${noteId}, ${notebookId}, ${prompt[0].title}, ${prompt[0].content}, 'text', 'prompt')
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
+  `
+  return rows[0] as Note
 }

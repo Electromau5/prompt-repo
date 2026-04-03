@@ -41,6 +41,7 @@ export interface Note {
   title: string
   content: string
   type: 'text' | 'spreadsheet'
+  template?: string | null
   createdAt?: Date
   updatedAt?: Date
 }

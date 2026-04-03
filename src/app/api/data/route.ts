@@ -137,7 +137,7 @@ export async function GET() {
         ORDER BY created_at
       `,
       sql`
-        SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+        SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
         FROM notes
         ORDER BY created_at DESC
       `
