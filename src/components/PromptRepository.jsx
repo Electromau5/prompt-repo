@@ -2389,7 +2389,10 @@ export default function PromptRepository() {
         </div>
 
         {/* Table */}
-        <div className="flex-1 overflow-auto border border-zinc-700 rounded min-h-0" style={{ scrollbarWidth: 'thin', scrollbarColor: '#52525b #27272a' }}>
+        <div
+          className="flex-1 border border-zinc-700 rounded spreadsheet-scroll"
+          style={{ maxHeight: 'calc(100vh - 280px)' }}
+        >
           <table className="border-collapse" style={{ minWidth: 'max-content' }}>
             <thead className="sticky top-0 z-10">
               <tr>
