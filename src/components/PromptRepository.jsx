@@ -2518,7 +2518,7 @@ export default function PromptRepository() {
                     <h2 className="text-lg font-medium truncate">{currentNote.title}</h2>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-2 flex-shrink-0 bg-zinc-800 p-1 rounded">
                   {currentNote.type !== 'spreadsheet' && (
                     <button
                       onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
