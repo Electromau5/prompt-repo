@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -2214,16 +2214,58 @@ export default function PromptRepository() {
 
   // Spreadsheet Editor Component
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
-    // Parse spreadsheet data from note content
+    // Default table structure
+    const createDefaultTable = (name = 'Table 1') => ({
+      name,
+      columns: ['Column A', 'Column B', 'Column C'],
+      columnWidths: [150, 150, 150],
+      columnTypes: [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
+      rows: [['', '', ''], ['', '', ''], ['', '', '']]
+    });
+
+    // Parse spreadsheet data from note content (supports legacy and new format)
     const parseSpreadsheetData = (content) => {
       try {
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        // Check if it's the new multi-table format
+        if (parsed.tables && Array.isArray(parsed.tables)) {
+          // Migrate tables to ensure they have all required fields
+          return {
+            tables: parsed.tables.map((table, idx) => ({
+              name: table.name || `Table ${idx + 1}`,
+              columns: table.columns || ['Column A', 'Column B', 'Column C'],
+              columnWidths: table.columnWidths || table.columns?.map(() => 150) || [150, 150, 150],
+              columnTypes: table.columnTypes || table.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
+              rows: table.rows || [['', '', '']]
+            })),
+            activeTableIndex: parsed.activeTableIndex || 0
+          };
+        }
+        // Legacy format: single table with columns/rows
+        return {
+          tables: [{
+            name: 'Table 1',
+            columns: parsed.columns || ['Column A', 'Column B', 'Column C'],
+            columnWidths: parsed.columnWidths || parsed.columns?.map(() => 150) || [150, 150, 150],
+            columnTypes: parsed.columnTypes || parsed.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
+            rows: parsed.rows || [['', '', '']]
+          }],
+          activeTableIndex: 0
+        };
       } catch {
-        return { columns: ['Column A', 'Column B', 'Column C'], rows: [['', '', ''], ['', '', ''], ['', '', '']] };
+        return { tables: [createDefaultTable()], activeTableIndex: 0 };
       }
     };
 
     const [spreadsheetData, setSpreadsheetData] = useState(() => parseSpreadsheetData(note.content));
+    const [resizingColumn, setResizingColumn] = useState(null);
+    const [columnTypeMenu, setColumnTypeMenu] = useState(null); // { tableIndex, colIndex }
+    const [dropdownOptionsEdit, setDropdownOptionsEdit] = useState(null); // { tableIndex, colIndex, options }
+    const resizeStartX = useRef(0);
+    const resizeStartWidth = useRef(0);
+
+    // Get current active table
+    const activeTable = spreadsheetData.tables[spreadsheetData.activeTableIndex] || spreadsheetData.tables[0];
 
     // Update parent when data changes
     const updateSpreadsheet = (newData) => {
@@ -2233,53 +2275,215 @@ export default function PromptRepository() {
       }
     };
 
+    // Update a specific table
+    const updateTable = (tableIndex, tableData) => {
+      const newTables = [...spreadsheetData.tables];
+      newTables[tableIndex] = { ...newTables[tableIndex], ...tableData };
+      updateSpreadsheet({ ...spreadsheetData, tables: newTables });
+    };
+
     const updateCell = (rowIndex, colIndex, value) => {
-      const newRows = [...spreadsheetData.rows];
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      const newRows = [...table.rows];
       newRows[rowIndex] = [...newRows[rowIndex]];
       newRows[rowIndex][colIndex] = value;
-      updateSpreadsheet({ ...spreadsheetData, rows: newRows });
+      updateTable(tableIndex, { rows: newRows });
     };
 
     const updateColumnHeader = (colIndex, value) => {
-      const newColumns = [...spreadsheetData.columns];
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      const newColumns = [...table.columns];
       newColumns[colIndex] = value;
-      updateSpreadsheet({ ...spreadsheetData, columns: newColumns });
+      updateTable(tableIndex, { columns: newColumns });
     };
 
     const addRow = () => {
-      const newRow = spreadsheetData.columns.map(() => '');
-      updateSpreadsheet({ ...spreadsheetData, rows: [...spreadsheetData.rows, newRow] });
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      const newRow = table.columns.map(() => '');
+      updateTable(tableIndex, { rows: [...table.rows, newRow] });
     };
 
     const removeRow = (rowIndex) => {
-      if (spreadsheetData.rows.length <= 1) return;
-      const newRows = spreadsheetData.rows.filter((_, i) => i !== rowIndex);
-      updateSpreadsheet({ ...spreadsheetData, rows: newRows });
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      if (table.rows.length <= 1) return;
+      const newRows = table.rows.filter((_, i) => i !== rowIndex);
+      updateTable(tableIndex, { rows: newRows });
     };
 
     const addColumn = () => {
-      const newColumns = [...spreadsheetData.columns, `Column ${String.fromCharCode(65 + spreadsheetData.columns.length)}`];
-      const newRows = spreadsheetData.rows.map(row => [...row, '']);
-      updateSpreadsheet({ columns: newColumns, rows: newRows });
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      const newColumns = [...table.columns, `Column ${String.fromCharCode(65 + table.columns.length)}`];
+      const newColumnWidths = [...table.columnWidths, 150];
+      const newColumnTypes = [...table.columnTypes, { type: 'text' }];
+      const newRows = table.rows.map(row => [...row, '']);
+      updateTable(tableIndex, { columns: newColumns, columnWidths: newColumnWidths, columnTypes: newColumnTypes, rows: newRows });
     };
 
     const removeColumn = (colIndex) => {
-      if (spreadsheetData.columns.length <= 1) return;
-      const newColumns = spreadsheetData.columns.filter((_, i) => i !== colIndex);
-      const newRows = spreadsheetData.rows.map(row => row.filter((_, i) => i !== colIndex));
-      updateSpreadsheet({ columns: newColumns, rows: newRows });
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      if (table.columns.length <= 1) return;
+      const newColumns = table.columns.filter((_, i) => i !== colIndex);
+      const newColumnWidths = table.columnWidths.filter((_, i) => i !== colIndex);
+      const newColumnTypes = table.columnTypes.filter((_, i) => i !== colIndex);
+      const newRows = table.rows.map(row => row.filter((_, i) => i !== colIndex));
+      updateTable(tableIndex, { columns: newColumns, columnWidths: newColumnWidths, columnTypes: newColumnTypes, rows: newRows });
+    };
+
+    // Column width resizing
+    const handleResizeStart = (e, colIndex) => {
+      e.preventDefault();
+      setResizingColumn(colIndex);
+      resizeStartX.current = e.clientX;
+      resizeStartWidth.current = activeTable.columnWidths[colIndex];
+    };
+
+    useEffect(() => {
+      if (resizingColumn === null) return;
+
+      const handleMouseMove = (e) => {
+        const diff = e.clientX - resizeStartX.current;
+        const newWidth = Math.max(80, resizeStartWidth.current + diff);
+        const tableIndex = spreadsheetData.activeTableIndex;
+        const table = spreadsheetData.tables[tableIndex];
+        const newColumnWidths = [...table.columnWidths];
+        newColumnWidths[resizingColumn] = newWidth;
+        updateTable(tableIndex, { columnWidths: newColumnWidths });
+      };
+
+      const handleMouseUp = () => {
+        setResizingColumn(null);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }, [resizingColumn, spreadsheetData.activeTableIndex]);
+
+    // Column type management
+    const updateColumnType = (colIndex, newType, options = null) => {
+      const tableIndex = spreadsheetData.activeTableIndex;
+      const table = spreadsheetData.tables[tableIndex];
+      const newColumnTypes = [...table.columnTypes];
+      newColumnTypes[colIndex] = { type: newType, ...(options ? { options } : {}) };
+      updateTable(tableIndex, { columnTypes: newColumnTypes });
+      setColumnTypeMenu(null);
+    };
+
+    // Multiple tables management
+    const addTable = () => {
+      const newTable = createDefaultTable(`Table ${spreadsheetData.tables.length + 1}`);
+      updateSpreadsheet({
+        tables: [...spreadsheetData.tables, newTable],
+        activeTableIndex: spreadsheetData.tables.length
+      });
+    };
+
+    const removeTable = (tableIndex) => {
+      if (spreadsheetData.tables.length <= 1) return;
+      const newTables = spreadsheetData.tables.filter((_, i) => i !== tableIndex);
+      const newActiveIndex = tableIndex >= newTables.length ? newTables.length - 1 : tableIndex;
+      updateSpreadsheet({ tables: newTables, activeTableIndex: newActiveIndex });
+    };
+
+    const renameTable = (tableIndex, newName) => {
+      const newTables = [...spreadsheetData.tables];
+      newTables[tableIndex] = { ...newTables[tableIndex], name: newName };
+      updateSpreadsheet({ ...spreadsheetData, tables: newTables });
+    };
+
+    const switchTable = (tableIndex) => {
+      updateSpreadsheet({ ...spreadsheetData, activeTableIndex: tableIndex });
+    };
+
+    // Render cell input based on column type
+    const renderCellInput = (cell, rowIndex, colIndex) => {
+      const columnType = activeTable.columnTypes[colIndex] || { type: 'text' };
+
+      switch (columnType.type) {
+        case 'date':
+          return (
+            <input
+              type="date"
+              value={cell}
+              onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+              className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
+            />
+          );
+        case 'time':
+          return (
+            <input
+              type="time"
+              value={cell}
+              onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+              className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
+            />
+          );
+        case 'datetime':
+          return (
+            <input
+              type="datetime-local"
+              value={cell}
+              onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+              className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
+            />
+          );
+        case 'dropdown':
+          return (
+            <select
+              value={cell}
+              onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+              className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700 cursor-pointer"
+            >
+              <option value="">Select...</option>
+              {(columnType.options || []).map((opt, i) => (
+                <option key={i} value={opt}>{opt}</option>
+              ))}
+            </select>
+          );
+        default:
+          return (
+            <input
+              type="text"
+              value={cell}
+              onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+              className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
+              placeholder=""
+            />
+          );
+      }
+    };
+
+    // Column type icon
+    const getColumnTypeIcon = (type) => {
+      switch (type) {
+        case 'date': return <Calendar size={12} />;
+        case 'time': return <Clock size={12} />;
+        case 'datetime': return <Calendar size={12} />;
+        case 'dropdown': return <ChevronDown size={12} />;
+        default: return <Type size={12} />;
+      }
     };
 
     // File upload ref
     const fileInputRef = useRef(null);
 
-    // Handle file upload (CSV and Excel)
+    // Handle file upload (CSV and Excel) - updates the active table
     const handleFileUpload = (event) => {
       const file = event.target.files?.[0];
       if (!file) return;
 
       const reader = new FileReader();
       const fileName = file.name.toLowerCase();
+      const tableIndex = spreadsheetData.activeTableIndex;
 
       if (fileName.endsWith('.csv')) {
         // Parse CSV
@@ -2296,7 +2500,12 @@ export default function PromptRepository() {
                 while (cells.length < headers.length) cells.push('');
                 return cells.slice(0, headers.length);
               });
-              updateSpreadsheet({ columns: headers, rows: rows.length > 0 ? rows : [[]] });
+              updateTable(tableIndex, {
+                columns: headers,
+                columnWidths: headers.map(() => 150),
+                columnTypes: headers.map(() => ({ type: 'text' })),
+                rows: rows.length > 0 ? rows : [[]]
+              });
             }
           }
         };
@@ -2318,8 +2527,10 @@ export default function PromptRepository() {
               while (cells.length < headers.length) cells.push('');
               return cells.slice(0, headers.length);
             });
-            updateSpreadsheet({
+            updateTable(tableIndex, {
               columns: headers.length > 0 ? headers : ['Column A'],
+              columnWidths: (headers.length > 0 ? headers : ['Column A']).map(() => 150),
+              columnTypes: (headers.length > 0 ? headers : ['Column A']).map(() => ({ type: 'text' })),
               rows: rows.length > 0 ? rows : [['']]
             });
           }
@@ -2356,6 +2567,51 @@ export default function PromptRepository() {
 
     return (
       <div className="h-full flex flex-col min-h-0">
+        {/* Table Tabs */}
+        <div className="flex items-center gap-1 mb-2 flex-shrink-0 border-b border-zinc-700 pb-2">
+          {spreadsheetData.tables.map((table, tableIndex) => (
+            <div
+              key={tableIndex}
+              className={`group flex items-center gap-1 px-3 py-1.5 rounded-t text-sm cursor-pointer ${
+                tableIndex === spreadsheetData.activeTableIndex
+                  ? 'bg-zinc-700 text-white'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700/50'
+              }`}
+              onClick={() => switchTable(tableIndex)}
+            >
+              <input
+                type="text"
+                value={table.name}
+                onChange={(e) => {
+                  e.stopPropagation();
+                  renameTable(tableIndex, e.target.value);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-transparent w-20 text-sm focus:outline-none focus:bg-zinc-600 rounded px-1"
+              />
+              {spreadsheetData.tables.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeTable(tableIndex);
+                  }}
+                  className="p-0.5 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                  title="Delete table"
+                >
+                  <X size={12} />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={addTable}
+            className="flex items-center gap-1 px-2 py-1.5 text-sm text-zinc-400 hover:text-white hover:bg-zinc-700 rounded"
+            title="Add new table"
+          >
+            <Plus size={14} />
+          </button>
+        </div>
+
         {/* Toolbar */}
         <div className="flex items-center gap-2 mb-4 flex-wrap flex-shrink-0">
           <button
@@ -2384,29 +2640,87 @@ export default function PromptRepository() {
             className="hidden"
           />
           <span className="text-xs text-zinc-500 ml-2">
-            {spreadsheetData.rows.length} rows × {spreadsheetData.columns.length} columns
+            {activeTable.rows.length} rows × {activeTable.columns.length} columns
           </span>
         </div>
 
         {/* Table */}
         <div
           className="flex-1 border border-zinc-700 rounded spreadsheet-scroll"
-          style={{ maxHeight: 'calc(100vh - 280px)' }}
+          style={{ maxHeight: 'calc(100vh - 320px)' }}
         >
           <table className="border-collapse" style={{ tableLayout: 'fixed' }}>
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 sticky left-0 z-20">#</th>
-                {spreadsheetData.columns.map((col, colIndex) => (
-                  <th key={colIndex} className="bg-zinc-800 border border-zinc-700 p-0" style={{ minWidth: '150px', width: '150px' }}>
+                {activeTable.columns.map((col, colIndex) => (
+                  <th
+                    key={colIndex}
+                    className="bg-zinc-800 border border-zinc-700 p-0 relative"
+                    style={{ width: `${activeTable.columnWidths[colIndex]}px`, minWidth: `${activeTable.columnWidths[colIndex]}px` }}
+                  >
                     <div className="flex items-center">
+                      {/* Column type button */}
+                      <div className="relative">
+                        <button
+                          onClick={() => setColumnTypeMenu(
+                            columnTypeMenu?.colIndex === colIndex ? null : { tableIndex: spreadsheetData.activeTableIndex, colIndex }
+                          )}
+                          className="p-1.5 text-zinc-500 hover:text-white hover:bg-zinc-700"
+                          title="Change column type"
+                        >
+                          {getColumnTypeIcon(activeTable.columnTypes[colIndex]?.type || 'text')}
+                        </button>
+                        {/* Column type dropdown */}
+                        {columnTypeMenu?.colIndex === colIndex && (
+                          <div className="absolute top-full left-0 mt-1 bg-zinc-800 border border-zinc-700 rounded shadow-lg z-30 min-w-[160px]">
+                            <button
+                              onClick={() => updateColumnType(colIndex, 'text')}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-700 text-left"
+                            >
+                              <Type size={14} /> Text
+                            </button>
+                            <button
+                              onClick={() => updateColumnType(colIndex, 'date')}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-700 text-left"
+                            >
+                              <Calendar size={14} /> Date
+                            </button>
+                            <button
+                              onClick={() => updateColumnType(colIndex, 'time')}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-700 text-left"
+                            >
+                              <Clock size={14} /> Time
+                            </button>
+                            <button
+                              onClick={() => updateColumnType(colIndex, 'datetime')}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-700 text-left"
+                            >
+                              <Calendar size={14} /> Date & Time
+                            </button>
+                            <button
+                              onClick={() => {
+                                setDropdownOptionsEdit({
+                                  tableIndex: spreadsheetData.activeTableIndex,
+                                  colIndex,
+                                  options: activeTable.columnTypes[colIndex]?.options || []
+                                });
+                                setColumnTypeMenu(null);
+                              }}
+                              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-zinc-700 text-left"
+                            >
+                              <ChevronDown size={14} /> Dropdown
+                            </button>
+                          </div>
+                        )}
+                      </div>
                       <input
                         type="text"
                         value={col}
                         onChange={(e) => updateColumnHeader(colIndex, e.target.value)}
-                        className="flex-1 bg-transparent px-2 py-2 text-sm font-medium text-center focus:outline-none focus:bg-zinc-700"
+                        className="flex-1 bg-transparent px-2 py-2 text-sm font-medium text-center focus:outline-none focus:bg-zinc-700 min-w-0"
                       />
-                      {spreadsheetData.columns.length > 1 && (
+                      {activeTable.columns.length > 1 && (
                         <button
                           onClick={() => removeColumn(colIndex)}
                           className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-700"
@@ -2416,30 +2730,33 @@ export default function PromptRepository() {
                         </button>
                       )}
                     </div>
+                    {/* Resize handle */}
+                    <div
+                      className="absolute top-0 right-0 w-2 h-full cursor-col-resize hover:bg-blue-500/50 z-10"
+                      onMouseDown={(e) => handleResizeStart(e, colIndex)}
+                    />
                   </th>
                 ))}
                 <th className="w-10 bg-zinc-800 border border-zinc-700"></th>
               </tr>
             </thead>
             <tbody>
-              {spreadsheetData.rows.map((row, rowIndex) => (
+              {activeTable.rows.map((row, rowIndex) => (
                 <tr key={rowIndex} className="group">
                   <td className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10">
                     {rowIndex + 1}
                   </td>
                   {row.map((cell, colIndex) => (
-                    <td key={colIndex} className="border border-zinc-700 p-0" style={{ minWidth: '150px', width: '150px' }}>
-                      <input
-                        type="text"
-                        value={cell}
-                        onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
-                        className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
-                        placeholder=""
-                      />
+                    <td
+                      key={colIndex}
+                      className="border border-zinc-700 p-0"
+                      style={{ width: `${activeTable.columnWidths[colIndex]}px`, minWidth: `${activeTable.columnWidths[colIndex]}px` }}
+                    >
+                      {renderCellInput(cell, rowIndex, colIndex)}
                     </td>
                   ))}
                   <td className="border border-zinc-700 p-1 bg-zinc-800/50">
-                    {spreadsheetData.rows.length > 1 && (
+                    {activeTable.rows.length > 1 && (
                       <button
                         onClick={() => removeRow(rowIndex)}
                         className="p-1 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2454,6 +2771,42 @@ export default function PromptRepository() {
             </tbody>
           </table>
         </div>
+
+        {/* Dropdown options editor modal */}
+        {dropdownOptionsEdit && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDropdownOptionsEdit(null)}>
+            <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
+              <h3 className="text-sm font-medium mb-3">Configure Dropdown Options</h3>
+              <p className="text-xs text-zinc-400 mb-3">Enter each option on a new line:</p>
+              <textarea
+                value={dropdownOptionsEdit.options.join('\n')}
+                onChange={(e) => setDropdownOptionsEdit({
+                  ...dropdownOptionsEdit,
+                  options: e.target.value.split('\n').filter(o => o.trim())
+                })}
+                className="w-full h-32 bg-zinc-800 border border-zinc-700 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                placeholder="Option 1&#10;Option 2&#10;Option 3"
+              />
+              <div className="flex justify-end gap-2 mt-3">
+                <button
+                  onClick={() => setDropdownOptionsEdit(null)}
+                  className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    updateColumnType(dropdownOptionsEdit.colIndex, 'dropdown', dropdownOptionsEdit.options);
+                    setDropdownOptionsEdit(null);
+                  }}
+                  className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
