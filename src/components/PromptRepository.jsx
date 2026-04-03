@@ -139,10 +139,112 @@ export default function PromptRepository() {
     { id: 'note1', name: 'Prompts', type: 'prompts', icon: 'FileText', color: 'blue' }
   ]);
   const [activeNotebook, setActiveNotebook] = useState('note1');
+  const [showNewNotebook, setShowNewNotebook] = useState(false);
+  const [newNotebookName, setNewNotebookName] = useState('');
+
+  // Notes state (for generic notebooks)
+  const [notes, setNotes] = useState([]);
+  const [activeNote, setActiveNote] = useState(null);
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [showNewNote, setShowNewNote] = useState(false);
+  const [noteForm, setNoteForm] = useState({ title: '', content: '' });
+  const [copiedNoteId, setCopiedNoteId] = useState(null);
 
   const showNotif = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  // Notebook management functions
+  const createNotebook = () => {
+    if (!newNotebookName.trim()) return;
+    const newNotebook = {
+      id: generateId(),
+      name: newNotebookName.trim(),
+      type: 'notes',
+      icon: 'Notebook',
+      color: 'purple',
+      createdAt: new Date().toISOString()
+    };
+    setNotebooks(prev => [...prev, newNotebook]);
+    setNewNotebookName('');
+    setShowNewNotebook(false);
+    setActiveNotebook(newNotebook.id);
+    showNotif(`Created notebook "${newNotebook.name}"`);
+  };
+
+  const deleteNotebook = (notebookId) => {
+    if (notebookId === 'note1') {
+      showNotif('Cannot delete the Prompts notebook');
+      return;
+    }
+    const notebook = notebooks.find(n => n.id === notebookId);
+    if (confirm(`Delete notebook "${notebook?.name}" and all its notes?`)) {
+      setNotebooks(prev => prev.filter(n => n.id !== notebookId));
+      setNotes(prev => prev.filter(n => n.notebookId !== notebookId));
+      if (activeNotebook === notebookId) {
+        setActiveNotebook('note1');
+      }
+      showNotif(`Deleted notebook "${notebook?.name}"`);
+    }
+  };
+
+  const renameNotebook = (notebookId, newName) => {
+    if (!newName.trim()) return;
+    setNotebooks(prev => prev.map(n =>
+      n.id === notebookId ? { ...n, name: newName.trim() } : n
+    ));
+  };
+
+  // Notes management functions
+  const getNotesForNotebook = (notebookId) => {
+    return notes.filter(n => n.notebookId === notebookId);
+  };
+
+  const createNote = () => {
+    if (!noteForm.title.trim()) {
+      showNotif('Please enter a title');
+      return;
+    }
+    const newNote = {
+      id: generateId(),
+      notebookId: activeNotebook,
+      title: noteForm.title.trim(),
+      content: noteForm.content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+    setNotes(prev => [...prev, newNote]);
+    setNoteForm({ title: '', content: '' });
+    setShowNewNote(false);
+    setActiveNote(newNote.id);
+    showNotif('Note created');
+  };
+
+  const updateNote = (noteId, updates) => {
+    setNotes(prev => prev.map(n =>
+      n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n
+    ));
+    setEditingNoteId(null);
+    showNotif('Note updated');
+  };
+
+  const deleteNote = (noteId) => {
+    const note = notes.find(n => n.id === noteId);
+    if (confirm(`Delete note "${note?.title}"?`)) {
+      setNotes(prev => prev.filter(n => n.id !== noteId));
+      if (activeNote === noteId) {
+        setActiveNote(null);
+      }
+      showNotif('Note deleted');
+    }
+  };
+
+  const copyNoteContent = (content, noteId) => {
+    navigator.clipboard.writeText(content);
+    setCopiedNoteId(noteId);
+    setTimeout(() => setCopiedNoteId(null), 2000);
+    showNotif('Copied to clipboard');
   };
 
   // Load data from API on mount
@@ -1920,6 +2022,171 @@ export default function PromptRepository() {
 
   const rootPrompts = getFilteredPrompts(null);
 
+  // Get current notebook
+  const currentNotebook = notebooks.find(n => n.id === activeNotebook);
+  const isPromptsNotebook = currentNotebook?.type === 'prompts';
+
+  // Notes View Component for generic notebooks
+  const NotesView = () => {
+    const notebookNotes = getNotesForNotebook(activeNotebook);
+    const currentNote = notes.find(n => n.id === activeNote);
+
+    return (
+      <div className="flex h-full">
+        {/* Notes Sidebar */}
+        <div className="w-72 border-r border-zinc-800 flex flex-col bg-zinc-900/50">
+          <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+            <span className="text-sm font-medium text-zinc-400">Notes ({notebookNotes.length})</span>
+            <button
+              onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); }}
+              className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+              title="New note"
+            >
+              <Plus size={16} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-auto">
+            {notebookNotes.length === 0 ? (
+              <div className="p-4 text-center text-zinc-500">
+                <FileText size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">No notes yet</p>
+                <button
+                  onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); }}
+                  className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                >
+                  Create your first note
+                </button>
+              </div>
+            ) : (
+              <div className="py-2">
+                {notebookNotes.map(note => (
+                  <button
+                    key={note.id}
+                    onClick={() => setActiveNote(note.id)}
+                    className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors ${
+                      activeNote === note.id
+                        ? 'bg-blue-600/20 border-l-2 border-l-blue-500'
+                        : 'hover:bg-zinc-800'
+                    }`}
+                  >
+                    <div className="font-medium text-sm truncate">{note.title}</div>
+                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2">
+                      {note.content || 'No content'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Note Editor */}
+        <div className="flex-1 flex flex-col">
+          {currentNote ? (
+            <>
+              {/* Note Header */}
+              <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                {editingNoteId === currentNote.id ? (
+                  <input
+                    type="text"
+                    value={noteForm.title}
+                    onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
+                    className="flex-1 bg-zinc-800 rounded px-3 py-2 text-lg font-medium mr-4"
+                    placeholder="Note title"
+                    autoFocus
+                  />
+                ) : (
+                  <h2 className="text-lg font-medium">{currentNote.title}</h2>
+                )}
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
+                    className={`p-2 rounded transition-colors ${
+                      copiedNoteId === currentNote.id
+                        ? 'bg-green-600 text-white'
+                        : 'hover:bg-zinc-700 text-zinc-400 hover:text-white'
+                    }`}
+                    title="Copy content"
+                  >
+                    {copiedNoteId === currentNote.id ? <Check size={16} /> : <Copy size={16} />}
+                  </button>
+                  {editingNoteId === currentNote.id ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          updateNote(currentNote.id, { title: noteForm.title, content: noteForm.content });
+                        }}
+                        className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm flex items-center gap-1"
+                      >
+                        <Save size={14} /> Save
+                      </button>
+                      <button
+                        onClick={() => setEditingNoteId(null)}
+                        className="px-3 py-1.5 bg-zinc-700 hover:bg-zinc-600 rounded text-sm"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => {
+                          setEditingNoteId(currentNote.id);
+                          setNoteForm({ title: currentNote.title, content: currentNote.content });
+                        }}
+                        className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                        title="Edit note"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        onClick={() => deleteNote(currentNote.id)}
+                        className="p-2 hover:bg-zinc-700 rounded text-red-400 hover:text-red-300"
+                        title="Delete note"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Note Content */}
+              <div className="flex-1 p-4 overflow-auto">
+                {editingNoteId === currentNote.id ? (
+                  <textarea
+                    value={noteForm.content}
+                    onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                    className="w-full h-full bg-zinc-800 rounded-lg p-4 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder="Write your note here..."
+                  />
+                ) : (
+                  <div className="prose prose-invert max-w-none">
+                    <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-300 leading-relaxed">
+                      {currentNote.content || <span className="text-zinc-500 italic">No content yet. Click edit to add content.</span>}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Note Footer */}
+              <div className="px-4 py-2 border-t border-zinc-800 text-xs text-zinc-500">
+                Last updated: {new Date(currentNote.updatedAt).toLocaleString()}
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-zinc-500">
+              <div className="text-center">
+                <FileText size={48} className="mx-auto mb-4 opacity-50" />
+                <p>Select a note or create a new one</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100 flex">
       {/* Sidebar Drawer */}
@@ -1978,8 +2245,9 @@ export default function PromptRepository() {
         {drawerOpen && (
           <div className="p-4 border-t border-zinc-800">
             <button
+              onClick={() => setShowNewNotebook(true)}
               className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-              title="Coming soon"
+              title="Create new notebook"
             >
               <Plus size={16} />
               <span>New Notebook</span>
@@ -2044,87 +2312,105 @@ export default function PromptRepository() {
                 </button>
               )}
               <h1 className="font-bold text-xl flex items-center gap-2">
-                <FileText size={24} className="text-blue-500" />
+                {isPromptsNotebook ? (
+                  <FileText size={24} className="text-blue-500" />
+                ) : (
+                  <Notebook size={24} className="text-purple-500" />
+                )}
                 {notebooks.find(n => n.id === activeNotebook)?.name || 'Notebook'}
               </h1>
             </div>
             <div className="flex items-center gap-2">
-              <button onClick={exportData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Download full backup"><Download size={14} /> Backup</button>
-              <button onClick={() => setShowBackupRestore(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Restore from backup"><Upload size={14} /> Restore</button>
-              <button onClick={openMergeDuplicates} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Merge duplicate folders"><GitMerge size={14} /> Merge Duplicates</button>
+              {isPromptsNotebook ? (
+                <>
+                  <button onClick={exportData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Download full backup"><Download size={14} /> Backup</button>
+                  <button onClick={() => setShowBackupRestore(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Restore from backup"><Upload size={14} /> Restore</button>
+                  <button onClick={openMergeDuplicates} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Merge duplicate folders"><GitMerge size={14} /> Merge Duplicates</button>
+                </>
+              ) : (
+                <button
+                  onClick={() => deleteNotebook(activeNotebook)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded"
+                  title="Delete this notebook"
+                >
+                  <Trash2 size={14} /> Delete Notebook
+                </button>
+              )}
             </div>
           </div>
         </div>
 
-      {/* Toolbar */}
-      <div className="border-b border-zinc-800 px-6 py-3">
-        <div className="max-w-5xl mx-auto flex items-center gap-3">
-          <div className="flex-1 relative">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-            <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-800 rounded-lg pl-10 pr-10 py-2 text-sm" placeholder="Search prompts..." />
-            {searchQuery && (
+      {/* Toolbar - Only show for Prompts notebook */}
+      {isPromptsNotebook && (
+        <div className="border-b border-zinc-800 px-6 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-zinc-800 rounded-lg pl-10 pr-10 py-2 text-sm" placeholder="Search prompts..." />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
+                  title="Clear search"
+                >
+                  <X size={16} />
+                </button>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={toggleAllFolders}
+              className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"
+              title={areAllFoldersExpanded() ? 'Collapse all folders' : 'Expand all folders'}
+            >
+              {areAllFoldersExpanded() ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
+              {areAllFoldersExpanded() ? 'Collapse' : 'Expand'}
+            </button>
+            <div className="h-6 w-px bg-zinc-700" />
+            <div className="flex items-center bg-zinc-800 rounded-lg p-1">
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-white transition-colors"
-                title="Clear search"
+                onClick={() => setViewMode('list')}
+                className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                title="List view"
               >
-                <X size={16} />
+                <List size={16} />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
+                title="Grid view"
+              >
+                <LayoutGrid size={16} />
+              </button>
+            </div>
+            {viewMode === 'grid' && (
+              <button
+                onClick={() => setGridEditMode(!gridEditMode)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${gridEditMode ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
+                title="Toggle edit mode"
+              >
+                <Edit2 size={14} />
+                <span>Edit</span>
               </button>
             )}
-          </div>
-          <button
-            type="button"
-            onClick={toggleAllFolders}
-            className="flex items-center gap-2 px-3 py-2 text-sm bg-zinc-800 hover:bg-zinc-700 rounded-lg"
-            title={areAllFoldersExpanded() ? 'Collapse all folders' : 'Expand all folders'}
-          >
-            {areAllFoldersExpanded() ? <ChevronsDownUp size={14} /> : <ChevronsUpDown size={14} />}
-            {areAllFoldersExpanded() ? 'Collapse' : 'Expand'}
-          </button>
-          <div className="h-6 w-px bg-zinc-700" />
-          <div className="flex items-center bg-zinc-800 rounded-lg p-1">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-              title="List view"
-            >
-              <List size={16} />
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-zinc-600 text-white' : 'text-zinc-400 hover:text-white'}`}
-              title="Grid view"
-            >
-              <LayoutGrid size={16} />
-            </button>
-          </div>
-          {viewMode === 'grid' && (
-            <button
-              onClick={() => setGridEditMode(!gridEditMode)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg ${gridEditMode ? 'bg-blue-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:text-white'}`}
-              title="Toggle edit mode"
-            >
-              <Edit2 size={14} />
-              <span>Edit</span>
-            </button>
-          )}
-          <div className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-1.5">
-            <ArrowUpDown size={14} className="text-zinc-500" />
-            <select
-              value={folderSort}
-              onChange={(e) => setFolderSort(e.target.value)}
-              className="bg-transparent text-sm text-zinc-300 cursor-pointer focus:outline-none"
-            >
-              <option value="name" className="bg-zinc-800">Name</option>
-              <option value="prompts" className="bg-zinc-800">Prompts</option>
-              <option value="subfolders" className="bg-zinc-800">Subfolders</option>
-            </select>
+            <div className="flex items-center gap-2 bg-zinc-800 rounded-lg px-3 py-1.5">
+              <ArrowUpDown size={14} className="text-zinc-500" />
+              <select
+                value={folderSort}
+                onChange={(e) => setFolderSort(e.target.value)}
+                className="bg-transparent text-sm text-zinc-300 cursor-pointer focus:outline-none"
+              >
+                <option value="name" className="bg-zinc-800">Name</option>
+                <option value="prompts" className="bg-zinc-800">Prompts</option>
+                <option value="subfolders" className="bg-zinc-800">Subfolders</option>
+              </select>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {/* Tag Filter */}
-      {showTagManager && (
+      {/* Tag Filter - Only show for Prompts notebook */}
+      {isPromptsNotebook && showTagManager && (
         <div className="border-b border-zinc-800 px-6 py-3">
           <div className="max-w-5xl mx-auto">
             <div className="flex items-center justify-between mb-3">
@@ -2169,50 +2455,67 @@ export default function PromptRepository() {
       )}
 
       {/* Main Content */}
-      <div className="px-6 py-6">
-        <div className={`max-w-5xl mx-auto ${viewMode === 'list' ? 'space-y-1' : ''}`}>
-          {loading ? (
-            <div className="text-center text-zinc-500 py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
-              <p>Loading...</p>
-            </div>
-          ) : (
-            <>
-              {viewMode === 'list' ? <FolderAccordion /> : <FolderGrid />}
-              {data.folders.length === 0 && (
-                <div className="text-center text-zinc-500 py-12">
-                  <Folder size={48} className="mx-auto mb-4 opacity-50" />
-                  <p>No folders yet</p>
-                  <button onClick={() => setShowNewFolder(true)} className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">Create your first folder</button>
-                </div>
-              )}
-            </>
-          )}
+      {isPromptsNotebook ? (
+        <div className="px-6 py-6 flex-1 overflow-auto">
+          <div className={`max-w-5xl mx-auto ${viewMode === 'list' ? 'space-y-1' : ''}`}>
+            {loading ? (
+              <div className="text-center text-zinc-500 py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-4"></div>
+                <p>Loading...</p>
+              </div>
+            ) : (
+              <>
+                {viewMode === 'list' ? <FolderAccordion /> : <FolderGrid />}
+                {data.folders.length === 0 && (
+                  <div className="text-center text-zinc-500 py-12">
+                    <Folder size={48} className="mx-auto mb-4 opacity-50" />
+                    <p>No folders yet</p>
+                    <button onClick={() => setShowNewFolder(true)} className="mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm">Create your first folder</button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 overflow-hidden">
+          <NotesView />
+        </div>
+      )}
 
       {/* Floating Action Button */}
       <div className="fixed bottom-6 right-6 z-40">
         {showFabMenu && (
           <div className="absolute bottom-16 right-0 flex flex-col gap-2 items-end mb-2">
-            <button
-              onClick={() => { setShowBulkImport(true); setShowFabMenu(false); }}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
-            >
-              <Upload size={16} /> Bulk Import
-            </button>
-            <button
-              onClick={() => { setShowNewFolder(true); setNewFolderParent(null); setShowFabMenu(false); }}
-              className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg shadow-lg text-sm whitespace-nowrap"
-            >
-              <FolderPlus size={16} /> New Folder
-            </button>
-            <button
-              onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); setShowFabMenu(false); }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
-            >
-              <Plus size={16} /> New Prompt
-            </button>
+            {isPromptsNotebook ? (
+              <>
+                <button
+                  onClick={() => { setShowBulkImport(true); setShowFabMenu(false); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                >
+                  <Upload size={16} /> Bulk Import
+                </button>
+                <button
+                  onClick={() => { setShowNewFolder(true); setNewFolderParent(null); setShowFabMenu(false); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                >
+                  <FolderPlus size={16} /> New Folder
+                </button>
+                <button
+                  onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); setShowFabMenu(false); }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                >
+                  <Plus size={16} /> New Prompt
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); setShowFabMenu(false); }}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+              >
+                <Plus size={16} /> New Note
+              </button>
+            )}
           </div>
         )}
         <button
@@ -2232,6 +2535,108 @@ export default function PromptRepository() {
       )}
 
       {/* Modals */}
+
+      {/* New Notebook Modal */}
+      {showNewNotebook && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-800 rounded-lg w-full max-w-md overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+              <h2 className="font-semibold flex items-center gap-2">
+                <Notebook size={20} className="text-purple-500" />
+                Create New Notebook
+              </h2>
+              <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }} className="p-1 hover:bg-zinc-700 rounded">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4">
+              <label className="block text-sm text-zinc-400 mb-2">Notebook Name</label>
+              <input
+                type="text"
+                value={newNotebookName}
+                onChange={(e) => setNewNotebookName(e.target.value)}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+                placeholder="My Notebook"
+                autoFocus
+                onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); }}
+              />
+              <p className="text-xs text-zinc-500 mt-2">
+                Create a notebook to organize your notes. You can add, edit, and delete notes within each notebook.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+              <button
+                onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }}
+                className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createNotebook}
+                disabled={!newNotebookName.trim()}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-600 disabled:cursor-not-allowed rounded flex items-center gap-2"
+              >
+                <Plus size={14} /> Create Notebook
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Note Modal */}
+      {showNewNote && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+              <h2 className="font-semibold flex items-center gap-2">
+                <FileText size={20} className="text-blue-500" />
+                Create New Note
+              </h2>
+              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '' }); }} className="p-1 hover:bg-zinc-700 rounded">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-2">Title</label>
+                <input
+                  type="text"
+                  value={noteForm.title}
+                  onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+                  placeholder="Note title"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-zinc-400 mb-2">Content</label>
+                <textarea
+                  value={noteForm.content}
+                  onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                  className="w-full h-48 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"
+                  placeholder="Write your note content here... You can paste any text content."
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+              <button
+                onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '' }); }}
+                className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={createNote}
+                disabled={!noteForm.title.trim()}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-600 disabled:cursor-not-allowed rounded flex items-center gap-2"
+              >
+                <Plus size={14} /> Create Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewPrompt && (
         <PromptModal
           defaultFolderId={newPromptFolder}
