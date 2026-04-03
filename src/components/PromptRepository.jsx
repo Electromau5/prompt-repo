@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -132,6 +132,13 @@ export default function PromptRepository() {
   const [duplicatePromptGroups, setDuplicatePromptGroups] = useState([]);
   const [duplicatePromptsFolderId, setDuplicatePromptsFolderId] = useState(null);
   const [showFabMenu, setShowFabMenu] = useState(false);
+
+  // Drawer and Notebook state
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [notebooks, setNotebooks] = useState([
+    { id: 'note1', name: 'Prompts', type: 'prompts', icon: 'FileText', color: 'blue' }
+  ]);
+  const [activeNotebook, setActiveNotebook] = useState('note1');
 
   const showNotif = (message) => {
     setNotification(message);
@@ -1914,58 +1921,140 @@ export default function PromptRepository() {
   const rootPrompts = getFilteredPrompts(null);
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-zinc-100">
-      {/* Notification */}
-      {notification && (
-        <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-          <Check size={16} /> {notification}
-        </div>
-      )}
-
-      {/* Bulk Action Bar */}
-      {selectedPrompts.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-800 border-t border-zinc-700 px-6 py-3 shadow-lg">
-          <div className="max-w-5xl mx-auto flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium">
-                {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} selected
-              </span>
+    <div className="min-h-screen bg-zinc-900 text-zinc-100 flex">
+      {/* Sidebar Drawer */}
+      <div className={`${drawerOpen ? 'w-64' : 'w-16'} bg-zinc-950 border-r border-zinc-800 flex flex-col transition-all duration-300 flex-shrink-0`}>
+        {/* Drawer Header */}
+        <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+          {drawerOpen ? (
+            <>
+              <div className="flex items-center gap-2">
+                <BookOpen size={20} className="text-blue-500" />
+                <span className="font-semibold">Notebooks</span>
+              </div>
               <button
-                onClick={clearSelection}
-                className="text-sm text-zinc-400 hover:text-white"
+                onClick={() => setDrawerOpen(false)}
+                className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors"
+                title="Collapse sidebar"
               >
-                Clear selection
+                <PanelLeftClose size={18} />
               </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setDrawerOpen(true)}
+              className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors mx-auto"
+              title="Expand sidebar"
+            >
+              <Menu size={18} />
+            </button>
+          )}
+        </div>
+
+        {/* Notebooks List */}
+        <div className="flex-1 overflow-auto py-2">
+          {notebooks.map(notebook => (
+            <button
+              key={notebook.id}
+              onClick={() => setActiveNotebook(notebook.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
+                activeNotebook === notebook.id
+                  ? 'bg-blue-600/20 text-blue-400 border-r-2 border-blue-500'
+                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+              }`}
+              title={notebook.name}
+            >
+              {notebook.type === 'prompts' ? (
+                <FileText size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : ''} />
+              ) : (
+                <Notebook size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : ''} />
+              )}
+              {drawerOpen && <span className="truncate">{notebook.name}</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Drawer Footer - Add Notebook */}
+        {drawerOpen && (
+          <div className="p-4 border-t border-zinc-800">
+            <button
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
+              title="Coming soon"
+            >
+              <Plus size={16} />
+              <span>New Notebook</span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Notification */}
+        {notification && (
+          <div className="fixed top-4 right-4 z-50 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+            <Check size={16} /> {notification}
+          </div>
+        )}
+
+        {/* Bulk Action Bar */}
+        {selectedPrompts.size > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-zinc-800 border-t border-zinc-700 px-6 py-3 shadow-lg">
+            <div className="max-w-5xl mx-auto flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium">
+                  {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} selected
+                </span>
+                <button
+                  onClick={clearSelection}
+                  className="text-sm text-zinc-400 hover:text-white"
+                >
+                  Clear selection
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowBulkMove(true)}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"
+                >
+                  <Move size={14} /> Move to folder
+                </button>
+                <button
+                  onClick={bulkDeletePrompts}
+                  className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 rounded-lg"
+                >
+                  <Trash2 size={14} /> Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="border-b border-zinc-800 px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              {!drawerOpen && (
+                <button
+                  onClick={() => setDrawerOpen(true)}
+                  className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition-colors mr-2"
+                  title="Expand sidebar"
+                >
+                  <Menu size={18} />
+                </button>
+              )}
+              <h1 className="font-bold text-xl flex items-center gap-2">
+                <FileText size={24} className="text-blue-500" />
+                {notebooks.find(n => n.id === activeNotebook)?.name || 'Notebook'}
+              </h1>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowBulkMove(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded-lg"
-              >
-                <Move size={14} /> Move to folder
-              </button>
-              <button
-                onClick={bulkDeletePrompts}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-red-600 hover:bg-red-700 rounded-lg"
-              >
-                <Trash2 size={14} /> Delete
-              </button>
+              <button onClick={exportData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Download full backup"><Download size={14} /> Backup</button>
+              <button onClick={() => setShowBackupRestore(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Restore from backup"><Upload size={14} /> Restore</button>
+              <button onClick={openMergeDuplicates} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Merge duplicate folders"><GitMerge size={14} /> Merge Duplicates</button>
             </div>
           </div>
         </div>
-      )}
-
-      {/* Header */}
-      <div className="border-b border-zinc-800 px-6 py-4">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <h1 className="font-bold text-xl flex items-center gap-2"><FileText size={24} className="text-blue-500" /> Prompt Repository</h1>
-          <div className="flex items-center gap-2">
-            <button onClick={exportData} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Download full backup"><Download size={14} /> Backup</button>
-            <button onClick={() => setShowBackupRestore(true)} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Restore from backup"><Upload size={14} /> Restore</button>
-            <button onClick={openMergeDuplicates} className="flex items-center gap-2 px-3 py-1.5 text-sm bg-zinc-800 hover:bg-zinc-700 rounded" title="Merge duplicate folders"><GitMerge size={14} /> Merge Duplicates</button>
-          </div>
-        </div>
-      </div>
 
       {/* Toolbar */}
       <div className="border-b border-zinc-800 px-6 py-3">
@@ -3102,6 +3191,7 @@ export default function PromptRepository() {
           </div>
         </div>
       )}
+      </div>{/* End Main Content Area */}
     </div>
   );
 }
