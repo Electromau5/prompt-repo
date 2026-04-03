@@ -3421,56 +3421,87 @@ export default function PromptRepository() {
         </div>
       )}
 
-      {/* Floating Action Button */}
-      <div className="fixed bottom-6 right-6 z-40">
-        {showFabMenu && (
-          <div className="absolute bottom-16 right-0 flex flex-col gap-2 items-end mb-2">
-            {isPromptsNotebook ? (
-              <>
-                <button
-                  onClick={() => { setShowBulkImport(true); setShowFabMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
-                >
-                  <Upload size={16} /> Bulk Import
-                </button>
-                <button
-                  onClick={() => { setShowNewFolder(true); setNewFolderParent(null); setShowFabMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg shadow-lg text-sm whitespace-nowrap"
-                >
-                  <FolderPlus size={16} /> New Folder
-                </button>
-                <button
-                  onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); setShowFabMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
-                >
-                  <Plus size={16} /> New Prompt
-                </button>
-              </>
-            ) : (
-              <button
-                onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); setShowFabMenu(false); }}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
-              >
-                <Plus size={16} /> New Note
-              </button>
-            )}
-          </div>
-        )}
-        <button
-          onClick={() => setShowFabMenu(!showFabMenu)}
-          className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${showFabMenu ? 'bg-zinc-600 rotate-45' : 'bg-blue-600 hover:bg-blue-700'}`}
-        >
-          <Plus size={24} />
-        </button>
-      </div>
+      {/* Floating Action Button - shows different options based on note template */}
+      {(() => {
+        const currentNote = notes.find(n => n.id === activeNote);
+        const noteTemplate = currentNote?.type || currentNote?.template;
 
-      {/* Click outside to close FAB menu */}
-      {showFabMenu && (
-        <div
-          className="fixed inset-0 z-30"
-          onClick={() => setShowFabMenu(false)}
-        />
-      )}
+        // Determine FAB visibility and options based on context
+        // Text notes: no FAB
+        // Prompt notes or prompts notebook: Bulk Import, New Folder, New Prompt
+        // Spreadsheet notes: New Spreadsheet
+        const isPromptContext = isPromptsNotebook || noteTemplate === 'prompt';
+        const isSpreadsheetContext = noteTemplate === 'spreadsheet';
+        const isTextContext = noteTemplate === 'text' && !isPromptsNotebook;
+
+        // Hide FAB for text notes
+        if (isTextContext) return null;
+
+        return (
+          <>
+            <div className="fixed bottom-6 right-6 z-40">
+              {showFabMenu && (
+                <div className="absolute bottom-16 right-0 flex flex-col gap-2 items-end mb-2">
+                  {isPromptContext ? (
+                    <>
+                      <button
+                        onClick={() => { setShowBulkImport(true); setShowFabMenu(false); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                      >
+                        <Upload size={16} /> Bulk Import
+                      </button>
+                      <button
+                        onClick={() => { setShowNewFolder(true); setNewFolderParent(null); setShowFabMenu(false); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-zinc-700 hover:bg-zinc-600 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                      >
+                        <FolderPlus size={16} /> New Folder
+                      </button>
+                      <button
+                        onClick={() => { setShowNewPrompt(true); setNewPromptFolder(null); setShowFabMenu(false); }}
+                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                      >
+                        <Plus size={16} /> New Prompt
+                      </button>
+                    </>
+                  ) : isSpreadsheetContext ? (
+                    <button
+                      onClick={() => {
+                        setShowNewNote(true);
+                        setNoteForm({ title: '', content: '', type: 'spreadsheet', tags: [] });
+                        setShowFabMenu(false);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                    >
+                      <Table size={16} /> New Spreadsheet
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); setShowFabMenu(false); }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg shadow-lg text-sm whitespace-nowrap"
+                    >
+                      <Plus size={16} /> New Note
+                    </button>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => setShowFabMenu(!showFabMenu)}
+                className={`w-14 h-14 rounded-full shadow-lg flex items-center justify-center transition-all ${showFabMenu ? 'bg-zinc-600 rotate-45' : isSpreadsheetContext ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+              >
+                <Plus size={24} />
+              </button>
+            </div>
+
+            {/* Click outside to close FAB menu */}
+            {showFabMenu && (
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setShowFabMenu(false)}
+              />
+            )}
+          </>
+        );
+      })()}
 
       {/* Modals */}
 
