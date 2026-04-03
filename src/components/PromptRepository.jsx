@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -227,7 +227,8 @@ export default function PromptRepository() {
   // Note template types
   const noteTemplates = [
     { id: 'text', name: 'Text Note', icon: 'FileText', description: 'Simple text note for writing' },
-    { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table', description: 'Table with rows and columns' }
+    { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table', description: 'Table with rows and columns' },
+    { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' }
   ];
 
   const showNotif = (message) => {
@@ -2518,7 +2519,7 @@ export default function PromptRepository() {
                     <h2 className="text-lg font-medium truncate">{currentNote.title}</h2>
                   )}
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 bg-zinc-800 p-1 rounded">
+                <div className="flex items-center gap-2 flex-shrink-0">
                   {currentNote.type !== 'spreadsheet' && (
                     <button
                       onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
@@ -3089,6 +3090,8 @@ export default function PromptRepository() {
               <h2 className="font-semibold flex items-center gap-2">
                 {noteForm.type === 'spreadsheet' ? (
                   <Table size={20} className="text-green-500" />
+                ) : noteForm.type === 'prompt' ? (
+                  <MessageSquare size={20} className="text-purple-500" />
                 ) : (
                   <FileText size={20} className="text-blue-500" />
                 )}
@@ -3116,6 +3119,8 @@ export default function PromptRepository() {
                       <div className="flex items-center gap-3 mb-2">
                         {template.icon === 'Table' ? (
                           <Table size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
+                        ) : template.icon === 'MessageSquare' ? (
+                          <MessageSquare size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
                         ) : (
                           <FileText size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
                         )}
