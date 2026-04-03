@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus } from 'lucide-react';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -147,8 +147,14 @@ export default function PromptRepository() {
   const [activeNote, setActiveNote] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [showNewNote, setShowNewNote] = useState(false);
-  const [noteForm, setNoteForm] = useState({ title: '', content: '' });
+  const [noteForm, setNoteForm] = useState({ title: '', content: '', type: 'text' });
   const [copiedNoteId, setCopiedNoteId] = useState(null);
+
+  // Note template types
+  const noteTemplates = [
+    { id: 'text', name: 'Text Note', icon: 'FileText', description: 'Simple text note for writing' },
+    { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table', description: 'Table with rows and columns' }
+  ];
 
   const showNotif = (message) => {
     setNotification(message);
@@ -206,16 +212,32 @@ export default function PromptRepository() {
       showNotif('Please enter a title');
       return;
     }
+
+    // Initialize content based on note type
+    let initialContent = noteForm.content;
+    if (noteForm.type === 'spreadsheet') {
+      // Initialize with empty spreadsheet data: array of rows, each row is array of cells
+      initialContent = JSON.stringify({
+        columns: ['Column A', 'Column B', 'Column C'],
+        rows: [
+          ['', '', ''],
+          ['', '', ''],
+          ['', '', '']
+        ]
+      });
+    }
+
     const newNote = {
       id: generateId(),
       notebookId: activeNotebook,
       title: noteForm.title.trim(),
-      content: noteForm.content,
+      content: initialContent,
+      type: noteForm.type,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
     setNotes(prev => [...prev, newNote]);
-    setNoteForm({ title: '', content: '' });
+    setNoteForm({ title: '', content: '', type: 'text' });
     setShowNewNote(false);
     setActiveNote(newNote.id);
     showNotif('Note created');
@@ -2026,6 +2048,152 @@ export default function PromptRepository() {
   const currentNotebook = notebooks.find(n => n.id === activeNotebook);
   const isPromptsNotebook = currentNotebook?.type === 'prompts';
 
+  // Spreadsheet Editor Component
+  const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
+    // Parse spreadsheet data from note content
+    const parseSpreadsheetData = (content) => {
+      try {
+        return JSON.parse(content);
+      } catch {
+        return { columns: ['Column A', 'Column B', 'Column C'], rows: [['', '', ''], ['', '', ''], ['', '', '']] };
+      }
+    };
+
+    const [spreadsheetData, setSpreadsheetData] = useState(() => parseSpreadsheetData(note.content));
+
+    // Update parent when data changes
+    const updateSpreadsheet = (newData) => {
+      setSpreadsheetData(newData);
+      if (onUpdate) {
+        onUpdate(JSON.stringify(newData));
+      }
+    };
+
+    const updateCell = (rowIndex, colIndex, value) => {
+      const newRows = [...spreadsheetData.rows];
+      newRows[rowIndex] = [...newRows[rowIndex]];
+      newRows[rowIndex][colIndex] = value;
+      updateSpreadsheet({ ...spreadsheetData, rows: newRows });
+    };
+
+    const updateColumnHeader = (colIndex, value) => {
+      const newColumns = [...spreadsheetData.columns];
+      newColumns[colIndex] = value;
+      updateSpreadsheet({ ...spreadsheetData, columns: newColumns });
+    };
+
+    const addRow = () => {
+      const newRow = spreadsheetData.columns.map(() => '');
+      updateSpreadsheet({ ...spreadsheetData, rows: [...spreadsheetData.rows, newRow] });
+    };
+
+    const removeRow = (rowIndex) => {
+      if (spreadsheetData.rows.length <= 1) return;
+      const newRows = spreadsheetData.rows.filter((_, i) => i !== rowIndex);
+      updateSpreadsheet({ ...spreadsheetData, rows: newRows });
+    };
+
+    const addColumn = () => {
+      const newColumns = [...spreadsheetData.columns, `Column ${String.fromCharCode(65 + spreadsheetData.columns.length)}`];
+      const newRows = spreadsheetData.rows.map(row => [...row, '']);
+      updateSpreadsheet({ columns: newColumns, rows: newRows });
+    };
+
+    const removeColumn = (colIndex) => {
+      if (spreadsheetData.columns.length <= 1) return;
+      const newColumns = spreadsheetData.columns.filter((_, i) => i !== colIndex);
+      const newRows = spreadsheetData.rows.map(row => row.filter((_, i) => i !== colIndex));
+      updateSpreadsheet({ columns: newColumns, rows: newRows });
+    };
+
+    return (
+      <div className="h-full flex flex-col">
+        {/* Toolbar */}
+        <div className="flex items-center gap-2 mb-4">
+          <button
+            onClick={addRow}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded"
+          >
+            <Plus size={14} /> Add Row
+          </button>
+          <button
+            onClick={addColumn}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded"
+          >
+            <Plus size={14} /> Add Column
+          </button>
+          <span className="text-xs text-zinc-500 ml-2">
+            {spreadsheetData.rows.length} rows × {spreadsheetData.columns.length} columns
+          </span>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr>
+                <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500">#</th>
+                {spreadsheetData.columns.map((col, colIndex) => (
+                  <th key={colIndex} className="bg-zinc-800 border border-zinc-700 p-0 min-w-[120px]">
+                    <div className="flex items-center">
+                      <input
+                        type="text"
+                        value={col}
+                        onChange={(e) => updateColumnHeader(colIndex, e.target.value)}
+                        className="flex-1 bg-transparent px-2 py-2 text-sm font-medium text-center focus:outline-none focus:bg-zinc-700"
+                      />
+                      {spreadsheetData.columns.length > 1 && (
+                        <button
+                          onClick={() => removeColumn(colIndex)}
+                          className="p-1 text-zinc-500 hover:text-red-400 hover:bg-zinc-700"
+                          title="Remove column"
+                        >
+                          <X size={12} />
+                        </button>
+                      )}
+                    </div>
+                  </th>
+                ))}
+                <th className="w-10 bg-zinc-800 border border-zinc-700"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {spreadsheetData.rows.map((row, rowIndex) => (
+                <tr key={rowIndex} className="group">
+                  <td className="bg-zinc-800/50 border border-zinc-700 p-2 text-xs text-zinc-500 text-center">
+                    {rowIndex + 1}
+                  </td>
+                  {row.map((cell, colIndex) => (
+                    <td key={colIndex} className="border border-zinc-700 p-0">
+                      <input
+                        type="text"
+                        value={cell}
+                        onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+                        className="w-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700"
+                        placeholder=""
+                      />
+                    </td>
+                  ))}
+                  <td className="border border-zinc-700 p-1 bg-zinc-800/50">
+                    {spreadsheetData.rows.length > 1 && (
+                      <button
+                        onClick={() => removeRow(rowIndex)}
+                        className="p-1 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Remove row"
+                      >
+                        <Minus size={14} />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
+
   // Notes View Component for generic notebooks
   const NotesView = () => {
     const notebookNotes = getNotesForNotebook(activeNotebook);
@@ -2069,9 +2237,20 @@ export default function PromptRepository() {
                         : 'hover:bg-zinc-800'
                     }`}
                   >
-                    <div className="font-medium text-sm truncate">{note.title}</div>
-                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2">
-                      {note.content || 'No content'}
+                    <div className="flex items-center gap-2">
+                      {note.type === 'spreadsheet' ? (
+                        <Table size={14} className="text-green-500 flex-shrink-0" />
+                      ) : (
+                        <FileText size={14} className="text-blue-500 flex-shrink-0" />
+                      )}
+                      <span className="font-medium text-sm truncate">{note.title}</span>
+                    </div>
+                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2 ml-6">
+                      {note.type === 'spreadsheet' ? (
+                        <span className="text-green-500/70">Spreadsheet</span>
+                      ) : (
+                        note.content || 'No content'
+                      )}
                     </div>
                   </button>
                 ))}
@@ -2086,30 +2265,39 @@ export default function PromptRepository() {
             <>
               {/* Note Header */}
               <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
-                {editingNoteId === currentNote.id ? (
-                  <input
-                    type="text"
-                    value={noteForm.title}
-                    onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
-                    className="flex-1 bg-zinc-800 rounded px-3 py-2 text-lg font-medium mr-4"
-                    placeholder="Note title"
-                    autoFocus
-                  />
-                ) : (
-                  <h2 className="text-lg font-medium">{currentNote.title}</h2>
-                )}
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
-                    className={`p-2 rounded transition-colors ${
-                      copiedNoteId === currentNote.id
-                        ? 'bg-green-600 text-white'
-                        : 'hover:bg-zinc-700 text-zinc-400 hover:text-white'
-                    }`}
-                    title="Copy content"
-                  >
-                    {copiedNoteId === currentNote.id ? <Check size={16} /> : <Copy size={16} />}
-                  </button>
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {currentNote.type === 'spreadsheet' ? (
+                    <Table size={20} className="text-green-500 flex-shrink-0" />
+                  ) : (
+                    <FileText size={20} className="text-blue-500 flex-shrink-0" />
+                  )}
+                  {editingNoteId === currentNote.id ? (
+                    <input
+                      type="text"
+                      value={noteForm.title}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
+                      className="flex-1 bg-zinc-800 rounded px-3 py-2 text-lg font-medium"
+                      placeholder="Note title"
+                      autoFocus
+                    />
+                  ) : (
+                    <h2 className="text-lg font-medium truncate">{currentNote.title}</h2>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {currentNote.type !== 'spreadsheet' && (
+                    <button
+                      onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
+                      className={`p-2 rounded transition-colors ${
+                        copiedNoteId === currentNote.id
+                          ? 'bg-green-600 text-white'
+                          : 'hover:bg-zinc-700 text-zinc-400 hover:text-white'
+                      }`}
+                      title="Copy content"
+                    >
+                      {copiedNoteId === currentNote.id ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                  )}
                   {editingNoteId === currentNote.id ? (
                     <>
                       <button
@@ -2129,16 +2317,18 @@ export default function PromptRepository() {
                     </>
                   ) : (
                     <>
-                      <button
-                        onClick={() => {
-                          setEditingNoteId(currentNote.id);
-                          setNoteForm({ title: currentNote.title, content: currentNote.content });
-                        }}
-                        className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
-                        title="Edit note"
-                      >
-                        <Edit2 size={16} />
-                      </button>
+                      {currentNote.type !== 'spreadsheet' && (
+                        <button
+                          onClick={() => {
+                            setEditingNoteId(currentNote.id);
+                            setNoteForm({ title: currentNote.title, content: currentNote.content, type: currentNote.type || 'text' });
+                          }}
+                          className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                          title="Edit note"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                      )}
                       <button
                         onClick={() => deleteNote(currentNote.id)}
                         className="p-2 hover:bg-zinc-700 rounded text-red-400 hover:text-red-300"
@@ -2153,7 +2343,15 @@ export default function PromptRepository() {
 
               {/* Note Content */}
               <div className="flex-1 p-4 overflow-auto">
-                {editingNoteId === currentNote.id ? (
+                {currentNote.type === 'spreadsheet' ? (
+                  <SpreadsheetEditor
+                    note={currentNote}
+                    isEditing={true}
+                    onUpdate={(newContent) => {
+                      updateNote(currentNote.id, { content: newContent });
+                    }}
+                  />
+                ) : editingNoteId === currentNote.id ? (
                   <textarea
                     value={noteForm.content}
                     onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
@@ -2171,6 +2369,7 @@ export default function PromptRepository() {
 
               {/* Note Footer */}
               <div className="px-4 py-2 border-t border-zinc-800 text-xs text-zinc-500">
+                {currentNote.type === 'spreadsheet' && <span className="text-green-500/70 mr-2">Spreadsheet</span>}
                 Last updated: {new Date(currentNote.updatedAt).toLocaleString()}
               </div>
             </>
@@ -2589,14 +2788,46 @@ export default function PromptRepository() {
           <div className="bg-zinc-800 rounded-lg w-full max-w-2xl overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-zinc-700">
               <h2 className="font-semibold flex items-center gap-2">
-                <FileText size={20} className="text-blue-500" />
+                {noteForm.type === 'spreadsheet' ? (
+                  <Table size={20} className="text-green-500" />
+                ) : (
+                  <FileText size={20} className="text-blue-500" />
+                )}
                 Create New Note
               </h2>
-              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '' }); }} className="p-1 hover:bg-zinc-700 rounded">
+              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text' }); }} className="p-1 hover:bg-zinc-700 rounded">
                 <X size={18} />
               </button>
             </div>
             <div className="p-4 space-y-4">
+              {/* Template Selection */}
+              <div>
+                <label className="block text-sm text-zinc-400 mb-2">Template</label>
+                <div className="grid grid-cols-2 gap-3">
+                  {noteTemplates.map(template => (
+                    <button
+                      key={template.id}
+                      onClick={() => setNoteForm(prev => ({ ...prev, type: template.id }))}
+                      className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                        noteForm.type === template.id
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'border-zinc-700 hover:border-zinc-600 bg-zinc-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 mb-2">
+                        {template.icon === 'Table' ? (
+                          <Table size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
+                        ) : (
+                          <FileText size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
+                        )}
+                        <span className="font-medium">{template.name}</span>
+                      </div>
+                      <p className="text-xs text-zinc-500">{template.description}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm text-zinc-400 mb-2">Title</label>
                 <input
@@ -2608,19 +2839,31 @@ export default function PromptRepository() {
                   autoFocus
                 />
               </div>
-              <div>
-                <label className="block text-sm text-zinc-400 mb-2">Content</label>
-                <textarea
-                  value={noteForm.content}
-                  onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
-                  className="w-full h-48 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"
-                  placeholder="Write your note content here... You can paste any text content."
-                />
-              </div>
+
+              {/* Only show content field for text notes */}
+              {noteForm.type === 'text' && (
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-2">Content (optional)</label>
+                  <textarea
+                    value={noteForm.content}
+                    onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                    className="w-full h-32 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"
+                    placeholder="Write your note content here... You can paste any text content."
+                  />
+                </div>
+              )}
+
+              {noteForm.type === 'spreadsheet' && (
+                <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+                  <p className="text-sm text-zinc-400">
+                    A spreadsheet will be created with 3 columns and 3 rows. You can add or remove rows after creating the note.
+                  </p>
+                </div>
+              )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
               <button
-                onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '' }); }}
+                onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text' }); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
               >
                 Cancel
