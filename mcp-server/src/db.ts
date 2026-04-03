@@ -1,5 +1,5 @@
 import { neon } from '@neondatabase/serverless';
-import type { Folder, Prompt, TagCategory, FolderTreeNode } from './types.js';
+import type { Folder, Prompt, TagCategory, FolderTreeNode, Notebook, Note } from './types.js';
 
 // Lazy-initialize database connection
 function getSQL() {
@@ -377,4 +377,122 @@ export async function getTagCategories(): Promise<TagCategory[]> {
     ORDER BY tc.name
   `;
   return rows as TagCategory[];
+}
+
+// ============ NOTEBOOKS ============
+
+export async function getNotebooks(): Promise<Notebook[]> {
+  const sql = getSQL();
+  const rows = await sql`
+    SELECT id, name, type, created_at as "createdAt", updated_at as "updatedAt"
+    FROM notebooks
+    ORDER BY created_at
+  `;
+  return rows as Notebook[];
+}
+
+export async function getNotebook(id: string): Promise<Notebook | null> {
+  const sql = getSQL();
+  const rows = await sql`
+    SELECT id, name, type, created_at as "createdAt", updated_at as "updatedAt"
+    FROM notebooks
+    WHERE id = ${id}
+  `;
+  return rows[0] as Notebook | null;
+}
+
+export async function createNotebook(name: string, type: string = 'notebook'): Promise<Notebook> {
+  const sql = getSQL();
+  const id = generateId();
+  const rows = await sql`
+    INSERT INTO notebooks (id, name, type)
+    VALUES (${id}, ${name}, ${type})
+    RETURNING id, name, type, created_at as "createdAt", updated_at as "updatedAt"
+  `;
+  return rows[0] as Notebook;
+}
+
+export async function updateNotebook(id: string, name: string): Promise<Notebook> {
+  const sql = getSQL();
+  const rows = await sql`
+    UPDATE notebooks
+    SET name = ${name}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, name, type, created_at as "createdAt", updated_at as "updatedAt"
+  `;
+  return rows[0] as Notebook;
+}
+
+export async function deleteNotebook(id: string): Promise<void> {
+  const sql = getSQL();
+  await sql`DELETE FROM notebooks WHERE id = ${id}`;
+}
+
+// ============ NOTES ============
+
+export async function getNotes(): Promise<Note[]> {
+  const sql = getSQL();
+  const rows = await sql`
+    SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    FROM notes
+    ORDER BY created_at DESC
+  `;
+  return rows as Note[];
+}
+
+export async function getNote(id: string): Promise<Note | null> {
+  const sql = getSQL();
+  const rows = await sql`
+    SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    FROM notes
+    WHERE id = ${id}
+  `;
+  return rows[0] as Note | null;
+}
+
+export async function getNotesByNotebook(notebookId: string): Promise<Note[]> {
+  const sql = getSQL();
+  const rows = await sql`
+    SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+    FROM notes
+    WHERE notebook_id = ${notebookId}
+    ORDER BY created_at DESC
+  `;
+  return rows as Note[];
+}
+
+export async function createNote(
+  notebookId: string,
+  title: string,
+  content: string,
+  type: string = 'text'
+): Promise<Note> {
+  const sql = getSQL();
+  const id = generateId();
+  const rows = await sql`
+    INSERT INTO notes (id, notebook_id, title, content, type)
+    VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type})
+    RETURNING id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+  `;
+  return rows[0] as Note;
+}
+
+export async function updateNote(
+  id: string,
+  title: string,
+  content: string
+): Promise<Note> {
+  const sql = getSQL();
+  const rows = await sql`
+    UPDATE notes
+    SET title = ${title}, content = ${content}, updated_at = NOW()
+    WHERE id = ${id}
+    RETURNING id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+  `;
+  return rows[0] as Note;
+}
+
+export async function deleteNote(id: string): Promise<void> {
+  const sql = getSQL();
+  await sql`DELETE FROM notes WHERE id = ${id}`;
 }

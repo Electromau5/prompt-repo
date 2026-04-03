@@ -39,3 +39,26 @@ export interface FolderTreeNode {
   children: FolderTreeNode[];
   promptCount: number;
 }
+
+export interface Notebook {
+  id: string;
+  name: string;
+  type: 'prompts' | 'notebook';
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface Note {
+  id: string;
+  notebookId: string;
+  title: string;
+  content: string;
+  type: 'text' | 'spreadsheet';
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface SpreadsheetData {
+  columns: string[];
+  rows: string[][];
+}

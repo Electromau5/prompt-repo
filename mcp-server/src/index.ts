@@ -11,6 +11,7 @@ import 'dotenv/config';
 import { promptTools, handlePromptTool } from './tools/prompts.js';
 import { folderTools, handleFolderTool } from './tools/folders.js';
 import { tagTools, handleTagTool } from './tools/tags.js';
+import { notebookTools, handleNotebookTool } from './tools/notebooks.js';
 
 // Create server instance
 const server = new Server(
@@ -26,12 +27,13 @@ const server = new Server(
 );
 
 // All available tools
-const allTools = [...promptTools, ...folderTools, ...tagTools];
+const allTools = [...promptTools, ...folderTools, ...tagTools, ...notebookTools];
 
-// Prompt tool names
+// Tool names by category
 const promptToolNames = new Set(promptTools.map(t => t.name));
 const folderToolNames = new Set(folderTools.map(t => t.name));
 const tagToolNames = new Set(tagTools.map(t => t.name));
+const notebookToolNames = new Set(notebookTools.map(t => t.name));
 
 // Handle list tools request
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -56,6 +58,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     if (tagToolNames.has(name)) {
       return await handleTagTool(name, args || {});
+    }
+
+    if (notebookToolNames.has(name)) {
+      return await handleNotebookTool(name, args || {});
     }
 
     throw new Error(`Unknown tool: ${name}`);
