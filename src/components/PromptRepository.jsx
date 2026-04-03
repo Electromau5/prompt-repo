@@ -2368,6 +2368,33 @@ export default function PromptRepository() {
       };
     }, [resizingColumn, spreadsheetData.activeTableIndex]);
 
+    // Unique non-empty cell values in column order, for seeding dropdown options
+    const getUniqueColumnCellValues = (table, colIndex) => {
+      const seen = new Set();
+      const ordered = [];
+      for (const row of table.rows) {
+        const raw = row[colIndex];
+        const v = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim();
+        if (!v || seen.has(v)) continue;
+        seen.add(v);
+        ordered.push(v);
+      }
+      return ordered;
+    };
+
+    const mergeDropdownOptionsFromColumn = (table, colIndex, savedOptions = []) => {
+      const fromCells = getUniqueColumnCellValues(table, colIndex);
+      const seen = new Set(fromCells);
+      const merged = [...fromCells];
+      for (const opt of savedOptions) {
+        const v = typeof opt === 'string' ? opt.trim() : String(opt ?? '').trim();
+        if (!v || seen.has(v)) continue;
+        seen.add(v);
+        merged.push(v);
+      }
+      return merged;
+    };
+
     // Column type management
     const updateColumnType = (colIndex, newType, options = null) => {
       const tableIndex = spreadsheetData.activeTableIndex;
@@ -2700,10 +2727,11 @@ export default function PromptRepository() {
                             </button>
                             <button
                               onClick={() => {
+                                const saved = activeTable.columnTypes[colIndex]?.options || [];
                                 setDropdownOptionsEdit({
                                   tableIndex: spreadsheetData.activeTableIndex,
                                   colIndex,
-                                  options: activeTable.columnTypes[colIndex]?.options || []
+                                  options: mergeDropdownOptionsFromColumn(activeTable, colIndex, saved)
                                 });
                                 setColumnTypeMenu(null);
                               }}
