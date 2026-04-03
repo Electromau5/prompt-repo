@@ -2489,6 +2489,18 @@ export default function PromptRepository() {
           )}
         </div>
 
+        {/* New Notebook Button */}
+        <div className="px-3 py-2 border-b border-zinc-800">
+          <button
+            onClick={() => setShowNewNotebook(true)}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors ${!drawerOpen ? 'px-0' : ''}`}
+            title="Create new notebook"
+          >
+            <Plus size={16} />
+            {drawerOpen && <span>New Notebook</span>}
+          </button>
+        </div>
+
         {/* Notebooks List */}
         <div className="flex-1 overflow-auto py-2">
           {notebooks.map(notebook => (
@@ -2512,17 +2524,6 @@ export default function PromptRepository() {
           ))}
         </div>
 
-        {/* Drawer Footer - Add Notebook (sticky at bottom) */}
-        <div className="p-4 border-t border-zinc-800 mt-auto">
-          <button
-            onClick={() => setShowNewNotebook(true)}
-            className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors ${!drawerOpen ? 'px-0' : ''}`}
-            title="Create new notebook"
-          >
-            <Plus size={16} />
-            {drawerOpen && <span>New Notebook</span>}
-          </button>
-        </div>
       </div>
 
       {/* Main Content Area */}
