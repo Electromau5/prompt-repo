@@ -137,9 +137,24 @@ export async function GET() {
         ORDER BY created_at
       `,
       sql`
-        SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
-        FROM notes
-        ORDER BY created_at DESC
+        SELECT
+          n.id,
+          n.notebook_id as "notebookId",
+          n.title,
+          n.content,
+          n.type,
+          n.template,
+          n.created_at as "createdAt",
+          n.updated_at as "updatedAt",
+          COALESCE(
+            array_agg(t.name) FILTER (WHERE t.name IS NOT NULL),
+            ARRAY[]::varchar[]
+          ) as tags
+        FROM notes n
+        LEFT JOIN note_tags nt ON n.id = nt.note_id
+        LEFT JOIN tags t ON nt.tag_id = t.id
+        GROUP BY n.id
+        ORDER BY n.created_at DESC
       `
     ])
 

@@ -111,20 +111,20 @@ const api = {
     if (!res.ok) throw new Error('Failed to delete notebook');
   },
   // Note APIs
-  async createNote(notebookId, title, content, type = 'text') {
+  async createNote(notebookId, title, content, type = 'text', template = null, tags = []) {
     const res = await fetch('/api/notes', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ notebookId, title, content, type })
+      body: JSON.stringify({ notebookId, title, content, type, template, tags })
     });
     if (!res.ok) throw new Error('Failed to create note');
     return res.json();
   },
-  async updateNote(id, title, content) {
+  async updateNote(id, title, content, tags) {
     const res = await fetch(`/api/notes/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, content })
+      body: JSON.stringify({ title, content, tags })
     });
     if (!res.ok) throw new Error('Failed to update note');
     return res.json();
@@ -219,7 +219,7 @@ export default function PromptRepository() {
   const [activeNote, setActiveNote] = useState(null);
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [showNewNote, setShowNewNote] = useState(false);
-  const [noteForm, setNoteForm] = useState({ title: '', content: '', type: 'text' });
+  const [noteForm, setNoteForm] = useState({ title: '', content: '', type: 'text', tags: [] });
   const [copiedNoteId, setCopiedNoteId] = useState(null);
   const [showMoveNote, setShowMoveNote] = useState(false);
   const [movingNoteId, setMovingNoteId] = useState(null);
@@ -313,9 +313,22 @@ export default function PromptRepository() {
     }
 
     try {
-      const newNote = await api.createNote(activeNotebook, noteForm.title.trim(), initialContent, noteForm.type);
+      // Set template for prompt-type notes
+      const template = noteForm.type === 'prompt' ? 'prompt' : null;
+      const tags = noteForm.tags || [];
+
+      const newNote = await api.createNote(activeNotebook, noteForm.title.trim(), initialContent, noteForm.type, template, tags);
       setNotes(prev => [...prev, newNote]);
-      setNoteForm({ title: '', content: '', type: 'text' });
+
+      // Update global tags if new ones were added
+      if (tags.length > 0) {
+        const newTags = tags.filter(t => !data.tags.includes(t));
+        if (newTags.length > 0) {
+          setData(d => ({ ...d, tags: [...d.tags, ...newTags] }));
+        }
+      }
+
+      setNoteForm({ title: '', content: '', type: 'text', tags: [] });
       setShowNewNote(false);
       setActiveNote(newNote.id);
       showNotif('Note created');
@@ -328,11 +341,23 @@ export default function PromptRepository() {
   const updateNote = async (noteId, updates) => {
     try {
       const note = notes.find(n => n.id === noteId);
-      const updatedNote = await api.updateNote(noteId, updates.title || note.title, updates.content !== undefined ? updates.content : note.content);
+      const updatedNote = await api.updateNote(
+        noteId,
+        updates.title || note.title,
+        updates.content !== undefined ? updates.content : note.content,
+        updates.tags
+      );
       setNotes(prev => prev.map(n =>
         n.id === noteId ? { ...n, ...updatedNote } : n
       ));
       setEditingNoteId(null);
+      // Update global tags if new ones were added
+      if (updates.tags) {
+        const newTags = updates.tags.filter(t => !data.tags.includes(t));
+        if (newTags.length > 0) {
+          setData(d => ({ ...d, tags: [...d.tags, ...newTags] }));
+        }
+      }
       showNotif('Note updated');
     } catch (e) {
       console.error('Error updating note:', e);
@@ -2537,7 +2562,7 @@ export default function PromptRepository() {
                     <>
                       <button
                         onClick={() => {
-                          updateNote(currentNote.id, { title: noteForm.title, content: noteForm.content });
+                          updateNote(currentNote.id, { title: noteForm.title, content: noteForm.content, tags: noteForm.tags });
                         }}
                         className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm flex items-center gap-1"
                       >
@@ -2556,7 +2581,7 @@ export default function PromptRepository() {
                         <button
                           onClick={() => {
                             setEditingNoteId(currentNote.id);
-                            setNoteForm({ title: currentNote.title, content: currentNote.content, type: currentNote.type || 'text' });
+                            setNoteForm({ title: currentNote.title, content: currentNote.content, type: currentNote.type || 'text', tags: currentNote.tags || [] });
                           }}
                           className="p-2 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
                           title="Edit note"
@@ -2601,17 +2626,77 @@ export default function PromptRepository() {
                     }}
                   />
                 ) : editingNoteId === currentNote.id ? (
-                  <textarea
-                    value={noteForm.content}
-                    onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
-                    className="w-full h-full bg-zinc-800 rounded-lg p-4 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder="Write your note here..."
-                  />
+                  <div className="flex flex-col h-full gap-4">
+                    <textarea
+                      value={noteForm.content}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                      className="flex-1 bg-zinc-800 rounded-lg p-4 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Write your note here..."
+                    />
+                    {/* Tags input for prompt-type notes */}
+                    {(currentNote.type === 'prompt' || currentNote.template === 'prompt') && (
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm text-zinc-400">Tags</label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                          {(noteForm.tags || []).map(tag => (
+                            <span key={tag} className="bg-purple-600/30 text-purple-300 px-2 py-1 rounded text-xs flex items-center gap-1">
+                              {tag}
+                              <button
+                                onClick={() => setNoteForm(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tag) }))}
+                                className="hover:text-red-400"
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            placeholder="Add a tag and press Enter"
+                            className="flex-1 bg-zinc-800 rounded px-3 py-2 text-sm"
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && e.target.value.trim()) {
+                                const newTag = e.target.value.trim().toLowerCase();
+                                if (!(noteForm.tags || []).includes(newTag)) {
+                                  setNoteForm(prev => ({ ...prev, tags: [...(prev.tags || []), newTag] }));
+                                }
+                                e.target.value = '';
+                              }
+                            }}
+                          />
+                        </div>
+                        {/* Suggested tags from existing tags */}
+                        {data.tags.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            <span className="text-xs text-zinc-500">Suggestions:</span>
+                            {data.tags.filter(t => !(noteForm.tags || []).includes(t)).slice(0, 8).map(tag => (
+                              <button
+                                key={tag}
+                                onClick={() => setNoteForm(prev => ({ ...prev, tags: [...(prev.tags || []), tag] }))}
+                                className="text-xs px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded"
+                              >
+                                + {tag}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="prose prose-invert max-w-none">
                     <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-300 leading-relaxed">
                       {currentNote.content || <span className="text-zinc-500 italic">No content yet. Click edit to add content.</span>}
                     </pre>
+                    {/* Display tags for prompt-type notes */}
+                    {(currentNote.type === 'prompt' || currentNote.template === 'prompt') && currentNote.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-zinc-800">
+                        {currentNote.tags.map(tag => (
+                          <span key={tag} className="bg-purple-600/30 text-purple-300 px-2 py-1 rounded text-xs">{tag}</span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -3097,7 +3182,7 @@ export default function PromptRepository() {
                 )}
                 Create New Note
               </h2>
-              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text' }); }} className="p-1 hover:bg-zinc-700 rounded">
+              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }} className="p-1 hover:bg-zinc-700 rounded">
                 <X size={18} />
               </button>
             </div>
@@ -3164,10 +3249,71 @@ export default function PromptRepository() {
                   </p>
                 </div>
               )}
+
+              {/* Prompt-specific fields */}
+              {noteForm.type === 'prompt' && (
+                <>
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-2">Prompt Content</label>
+                    <textarea
+                      value={noteForm.content}
+                      onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
+                      className="w-full h-32 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"
+                      placeholder="Enter your AI prompt here..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm text-zinc-400 mb-2">Tags</label>
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(noteForm.tags || []).map(tag => (
+                        <span key={tag} className="bg-purple-600/30 text-purple-300 px-2 py-1 rounded text-xs flex items-center gap-1">
+                          {tag}
+                          <button
+                            onClick={() => setNoteForm(prev => ({ ...prev, tags: (prev.tags || []).filter(t => t !== tag) }))}
+                            className="hover:text-red-400"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Type a tag and press Enter"
+                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-2 text-sm focus:outline-none focus:border-blue-500"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.target.value.trim()) {
+                          e.preventDefault();
+                          const newTag = e.target.value.trim().toLowerCase();
+                          if (!(noteForm.tags || []).includes(newTag)) {
+                            setNoteForm(prev => ({ ...prev, tags: [...(prev.tags || []), newTag] }));
+                          }
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    {/* Suggested tags */}
+                    {data.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        <span className="text-xs text-zinc-500">Suggestions:</span>
+                        {data.tags.filter(t => !(noteForm.tags || []).includes(t)).slice(0, 10).map(tag => (
+                          <button
+                            key={tag}
+                            onClick={() => setNoteForm(prev => ({ ...prev, tags: [...(prev.tags || []), tag] }))}
+                            className="text-xs px-1.5 py-0.5 bg-zinc-800 hover:bg-zinc-700 rounded"
+                          >
+                            + {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
               <button
-                onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text' }); }}
+                onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
               >
                 Cancel

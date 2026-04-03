@@ -40,8 +40,9 @@ export interface Note {
   notebookId: string
   title: string
   content: string
-  type: 'text' | 'spreadsheet'
+  type: 'text' | 'spreadsheet' | 'prompt'
   template?: string | null
+  tags?: string[]
   createdAt?: Date
   updatedAt?: Date
 }

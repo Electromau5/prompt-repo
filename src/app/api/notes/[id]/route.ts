@@ -7,7 +7,7 @@ export async function PUT(
 ) {
   try {
     const { id } = await params
-    const { title, content } = await request.json()
+    const { title, content, tags } = await request.json()
 
     if (!title) {
       return NextResponse.json(
@@ -16,7 +16,7 @@ export async function PUT(
       )
     }
 
-    const note = await updateNote(id, title, content || '')
+    const note = await updateNote(id, title, content || '', tags)
     return NextResponse.json(note)
   } catch (error) {
     console.error('Error updating note:', error)

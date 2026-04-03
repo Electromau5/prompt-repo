@@ -433,9 +433,24 @@ export async function deleteNotebook(id: string): Promise<void> {
 export async function getNotes(): Promise<Note[]> {
   const sql = getSQL();
   const rows = await sql`
-    SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
-    FROM notes
-    ORDER BY created_at DESC
+    SELECT
+      n.id,
+      n.notebook_id as "notebookId",
+      n.title,
+      n.content,
+      n.type,
+      n.template,
+      n.created_at as "createdAt",
+      n.updated_at as "updatedAt",
+      COALESCE(
+        array_agg(t.name) FILTER (WHERE t.name IS NOT NULL),
+        ARRAY[]::varchar[]
+      ) as tags
+    FROM notes n
+    LEFT JOIN note_tags nt ON n.id = nt.note_id
+    LEFT JOIN tags t ON nt.tag_id = t.id
+    GROUP BY n.id
+    ORDER BY n.created_at DESC
   `;
   return rows as Note[];
 }
@@ -443,9 +458,24 @@ export async function getNotes(): Promise<Note[]> {
 export async function getNote(id: string): Promise<Note | null> {
   const sql = getSQL();
   const rows = await sql`
-    SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
-    FROM notes
-    WHERE id = ${id}
+    SELECT
+      n.id,
+      n.notebook_id as "notebookId",
+      n.title,
+      n.content,
+      n.type,
+      n.template,
+      n.created_at as "createdAt",
+      n.updated_at as "updatedAt",
+      COALESCE(
+        array_agg(t.name) FILTER (WHERE t.name IS NOT NULL),
+        ARRAY[]::varchar[]
+      ) as tags
+    FROM notes n
+    LEFT JOIN note_tags nt ON n.id = nt.note_id
+    LEFT JOIN tags t ON nt.tag_id = t.id
+    WHERE n.id = ${id}
+    GROUP BY n.id
   `;
   return rows[0] as Note | null;
 }
@@ -453,10 +483,25 @@ export async function getNote(id: string): Promise<Note | null> {
 export async function getNotesByNotebook(notebookId: string): Promise<Note[]> {
   const sql = getSQL();
   const rows = await sql`
-    SELECT id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
-    FROM notes
-    WHERE notebook_id = ${notebookId}
-    ORDER BY created_at DESC
+    SELECT
+      n.id,
+      n.notebook_id as "notebookId",
+      n.title,
+      n.content,
+      n.type,
+      n.template,
+      n.created_at as "createdAt",
+      n.updated_at as "updatedAt",
+      COALESCE(
+        array_agg(t.name) FILTER (WHERE t.name IS NOT NULL),
+        ARRAY[]::varchar[]
+      ) as tags
+    FROM notes n
+    LEFT JOIN note_tags nt ON n.id = nt.note_id
+    LEFT JOIN tags t ON nt.tag_id = t.id
+    WHERE n.notebook_id = ${notebookId}
+    GROUP BY n.id
+    ORDER BY n.created_at DESC
   `;
   return rows as Note[];
 }
@@ -466,7 +511,8 @@ export async function createNote(
   title: string,
   content: string,
   type: string = 'text',
-  template: string | null = null
+  template: string | null = null,
+  tags: string[] = []
 ): Promise<Note> {
   const sql = getSQL();
   const id = generateId();
@@ -475,13 +521,38 @@ export async function createNote(
     VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type}, ${template})
     RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `;
-  return rows[0] as Note;
+  const note = rows[0] as Note;
+  note.tags = [];
+
+  // Add tags
+  for (const tagName of tags) {
+    const tagId = generateId();
+    await sql`
+      INSERT INTO tags (id, name)
+      VALUES (${tagId}, ${tagName.toLowerCase()})
+      ON CONFLICT (name) DO NOTHING
+    `;
+    const tagRows = await sql`
+      SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
+    `;
+    if (tagRows[0]) {
+      await sql`
+        INSERT INTO note_tags (note_id, tag_id)
+        VALUES (${note.id}, ${tagRows[0].id})
+        ON CONFLICT DO NOTHING
+      `;
+      note.tags.push(tagName.toLowerCase());
+    }
+  }
+
+  return note;
 }
 
 export async function updateNote(
   id: string,
   title: string,
-  content: string
+  content: string,
+  tags?: string[]
 ): Promise<Note> {
   const sql = getSQL();
   const rows = await sql`
@@ -490,7 +561,45 @@ export async function updateNote(
     WHERE id = ${id}
     RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `;
-  return rows[0] as Note;
+  const note = rows[0] as Note;
+  note.tags = [];
+
+  // Update tags if provided
+  if (tags !== undefined) {
+    // Remove existing tags
+    await sql`DELETE FROM note_tags WHERE note_id = ${id}`;
+
+    // Add new tags
+    for (const tagName of tags) {
+      const tagId = generateId();
+      await sql`
+        INSERT INTO tags (id, name)
+        VALUES (${tagId}, ${tagName.toLowerCase()})
+        ON CONFLICT (name) DO NOTHING
+      `;
+      const tagRows = await sql`
+        SELECT id FROM tags WHERE name = ${tagName.toLowerCase()}
+      `;
+      if (tagRows[0]) {
+        await sql`
+          INSERT INTO note_tags (note_id, tag_id)
+          VALUES (${note.id}, ${tagRows[0].id})
+          ON CONFLICT DO NOTHING
+        `;
+        note.tags.push(tagName.toLowerCase());
+      }
+    }
+  } else {
+    // Fetch existing tags
+    const tagRows = await sql`
+      SELECT t.name FROM tags t
+      JOIN note_tags nt ON t.id = nt.tag_id
+      WHERE nt.note_id = ${id}
+    `;
+    note.tags = tagRows.map(r => r.name as string);
+  }
+
+  return note;
 }
 
 export async function moveNote(id: string, newNotebookId: string): Promise<Note> {
@@ -501,7 +610,15 @@ export async function moveNote(id: string, newNotebookId: string): Promise<Note>
     WHERE id = ${id}
     RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `;
-  return rows[0] as Note;
+  const note = rows[0] as Note;
+  // Fetch existing tags
+  const tagRows = await sql`
+    SELECT t.name FROM tags t
+    JOIN note_tags nt ON t.id = nt.tag_id
+    WHERE nt.note_id = ${id}
+  `;
+  note.tags = tagRows.map(r => r.name as string);
+  return note;
 }
 
 export async function duplicateNote(id: string, targetNotebookId?: string): Promise<Note> {
@@ -513,7 +630,25 @@ export async function duplicateNote(id: string, targetNotebookId?: string): Prom
     FROM notes WHERE id = ${id}
     RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `;
-  return rows[0] as Note;
+  const note = rows[0] as Note;
+  note.tags = [];
+
+  // Copy tags from original note
+  const originalTags = await sql`
+    SELECT t.id, t.name FROM tags t
+    JOIN note_tags nt ON t.id = nt.tag_id
+    WHERE nt.note_id = ${id}
+  `;
+  for (const tag of originalTags) {
+    await sql`
+      INSERT INTO note_tags (note_id, tag_id)
+      VALUES (${newId}, ${tag.id})
+      ON CONFLICT DO NOTHING
+    `;
+    note.tags.push(tag.name as string);
+  }
+
+  return note;
 }
 
 export async function convertPromptToNote(promptId: string, notebookId: string): Promise<Note> {
@@ -528,10 +663,28 @@ export async function convertPromptToNote(promptId: string, notebookId: string):
   const noteId = generateId();
   const rows = await sql`
     INSERT INTO notes (id, notebook_id, title, content, type, template)
-    VALUES (${noteId}, ${notebookId}, ${prompt[0].title}, ${prompt[0].content}, 'text', 'prompt')
+    VALUES (${noteId}, ${notebookId}, ${prompt[0].title}, ${prompt[0].content}, 'prompt', 'prompt')
     RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
   `;
-  return rows[0] as Note;
+  const note = rows[0] as Note;
+  note.tags = [];
+
+  // Copy tags from the prompt
+  const promptTags = await sql`
+    SELECT t.id, t.name FROM tags t
+    JOIN prompt_tags pt ON t.id = pt.tag_id
+    WHERE pt.prompt_id = ${promptId}
+  `;
+  for (const tag of promptTags) {
+    await sql`
+      INSERT INTO note_tags (note_id, tag_id)
+      VALUES (${noteId}, ${tag.id})
+      ON CONFLICT DO NOTHING
+    `;
+    note.tags.push(tag.name as string);
+  }
+
+  return note;
 }
 
 export async function deleteNote(id: string): Promise<void> {

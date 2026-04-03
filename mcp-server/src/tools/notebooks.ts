@@ -134,8 +134,35 @@ export const notebookTools = [
     },
   },
   {
+    name: 'create_prompt_note',
+    description: 'Create a new prompt note (AI prompt template) in a notebook with optional tags',
+    inputSchema: {
+      type: 'object' as const,
+      properties: {
+        notebook_id: {
+          type: 'string',
+          description: 'The notebook ID to create the note in',
+        },
+        title: {
+          type: 'string',
+          description: 'The prompt title',
+        },
+        content: {
+          type: 'string',
+          description: 'The prompt content/instructions',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Array of tags to categorize the prompt (e.g., ["coding", "debug", "python"])',
+        },
+      },
+      required: ['notebook_id', 'title', 'content'],
+    },
+  },
+  {
     name: 'update_note',
-    description: 'Update an existing note (text or spreadsheet)',
+    description: 'Update an existing note (text, spreadsheet, or prompt)',
     inputSchema: {
       type: 'object' as const,
       properties: {
@@ -149,7 +176,7 @@ export const notebookTools = [
         },
         content: {
           type: 'string',
-          description: 'New content for text notes (optional)',
+          description: 'New content for text/prompt notes (optional)',
         },
         columns: {
           type: 'array',
@@ -163,6 +190,11 @@ export const notebookTools = [
             items: { type: 'string' },
           },
           description: 'New rows for spreadsheet notes (optional)',
+        },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'New tags for prompt notes (optional, replaces existing tags)',
         },
       },
       required: ['id'],
@@ -379,6 +411,8 @@ export async function handleNotebookTool(
                 title: n.title,
                 notebookId: n.notebookId,
                 type: n.type,
+                template: n.template,
+                tags: n.tags || [],
                 contentPreview: n.type === 'spreadsheet'
                   ? `Spreadsheet with ${parseSpreadsheetContent(n.content).rows.length} rows`
                   : n.content.substring(0, 100) + (n.content.length > 100 ? '...' : ''),
@@ -477,6 +511,28 @@ export async function handleNotebookTool(
       };
     }
 
+    case 'create_prompt_note': {
+      const tags = (args.tags as string[]) || [];
+      const note = await db.createNote(
+        args.notebook_id as string,
+        args.title as string,
+        (args.content as string) || '',
+        'prompt',
+        'prompt',
+        tags
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: `Created prompt note "${note.title}" with ID: ${note.id}\n` +
+              `Tags: ${note.tags?.join(', ') || 'none'}\n\n` +
+              JSON.stringify(note, null, 2),
+          },
+        ],
+      };
+    }
+
     case 'update_note': {
       const existing = await db.getNote(args.id as string);
       if (!existing) {
@@ -505,23 +561,29 @@ export async function handleNotebookTool(
         newContent = args.content as string;
       }
 
+      // Get tags if provided
+      const tags = args.tags as string[] | undefined;
+
       const note = await db.updateNote(
         args.id as string,
         (args.title as string) || existing.title,
-        newContent
+        newContent,
+        tags
       );
 
       return {
         content: [
           {
             type: 'text',
-            text: `Updated note "${note.title}"\n\n${JSON.stringify(
-              note.type === 'spreadsheet'
-                ? { ...note, spreadsheetData: parseSpreadsheetContent(note.content) }
-                : note,
-              null,
-              2
-            )}`,
+            text: `Updated note "${note.title}"\n` +
+              (note.tags?.length ? `Tags: ${note.tags.join(', ')}\n` : '') +
+              `\n${JSON.stringify(
+                note.type === 'spreadsheet'
+                  ? { ...note, spreadsheetData: parseSpreadsheetContent(note.content) }
+                  : note,
+                null,
+                2
+              )}`,
           },
         ],
       };

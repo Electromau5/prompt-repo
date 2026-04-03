@@ -74,6 +74,13 @@ CREATE TABLE notes (
   updated_at TIMESTAMP DEFAULT NOW()
 );
 
+-- Junction: note_tags (many-to-many relationship between notes and tags)
+CREATE TABLE note_tags (
+  note_id TEXT REFERENCES notes(id) ON DELETE CASCADE,
+  tag_id TEXT REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (note_id, tag_id)
+);
+
 -- Indexes for better query performance
 CREATE INDEX idx_folders_parent_id ON folders(parent_id);
 CREATE INDEX idx_prompts_folder_id ON prompts(folder_id);
