@@ -54,6 +54,16 @@ async function seedDefaultFolders(databaseUrl: string) {
   }
 }
 
+async function seedDefaultNotebooks(databaseUrl: string) {
+  const sql = neon(databaseUrl)
+  // Create the default "Prompts" notebook
+  await sql`
+    INSERT INTO notebooks (id, name, type)
+    VALUES ('note1', 'Prompts', 'prompts')
+    ON CONFLICT (id) DO NOTHING
+  `
+}
+
 export async function GET() {
   try {
     const databaseUrl = process.env.DATABASE_URL
@@ -72,8 +82,17 @@ export async function GET() {
       await seedDefaultFolders(databaseUrl)
     }
 
+    // Check if we have any notebooks
+    const notebookCount = await sql`SELECT COUNT(*) as count FROM notebooks`
+
+    // If no notebooks exist, seed the default ones
+    if (parseInt(notebookCount[0].count) === 0) {
+      console.log('No notebooks found, seeding default notebooks...')
+      await seedDefaultNotebooks(databaseUrl)
+    }
+
     // Fetch all data
-    const [folders, prompts, tags, tagCategories] = await Promise.all([
+    const [folders, prompts, tags, tagCategories, notebooks, notes] = await Promise.all([
       sql`
         SELECT id, name, parent_id as "parentId", created_at as "createdAt", updated_at as "updatedAt"
         FROM folders
@@ -111,6 +130,16 @@ export async function GET() {
         LEFT JOIN tags t ON ct.tag_id = t.id
         GROUP BY tc.id
         ORDER BY tc.name
+      `,
+      sql`
+        SELECT id, name, type, created_at as "createdAt", updated_at as "updatedAt"
+        FROM notebooks
+        ORDER BY created_at
+      `,
+      sql`
+        SELECT id, notebook_id as "notebookId", title, content, type, created_at as "createdAt", updated_at as "updatedAt"
+        FROM notes
+        ORDER BY created_at DESC
       `
     ])
 
@@ -118,7 +147,9 @@ export async function GET() {
       folders,
       prompts,
       tags: tags.map(t => t.name),
-      tagCategories
+      tagCategories,
+      notebooks,
+      notes
     })
   } catch (error) {
     console.error('Error fetching data:', error)

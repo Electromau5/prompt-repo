@@ -1,4 +1,6 @@
 -- Drop existing tables if they exist (to recreate with new schema)
+DROP TABLE IF EXISTS notes CASCADE;
+DROP TABLE IF EXISTS notebooks CASCADE;
 DROP TABLE IF EXISTS category_tags CASCADE;
 DROP TABLE IF EXISTS prompt_tags CASCADE;
 DROP TABLE IF EXISTS tag_categories CASCADE;
@@ -51,7 +53,28 @@ CREATE TABLE category_tags (
   PRIMARY KEY (category_id, tag_id)
 );
 
+-- Notebooks table
+CREATE TABLE notebooks (
+  id TEXT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  type VARCHAR(50) DEFAULT 'notebook',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Notes table
+CREATE TABLE notes (
+  id TEXT PRIMARY KEY,
+  notebook_id TEXT REFERENCES notebooks(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  content TEXT,
+  type VARCHAR(50) DEFAULT 'text',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
 -- Indexes for better query performance
 CREATE INDEX idx_folders_parent_id ON folders(parent_id);
 CREATE INDEX idx_prompts_folder_id ON prompts(folder_id);
 CREATE INDEX idx_tags_name ON tags(name);
+CREATE INDEX idx_notes_notebook_id ON notes(notebook_id);

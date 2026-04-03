@@ -27,9 +27,29 @@ export interface TagCategory {
   tags: string[]
 }
 
+export interface Notebook {
+  id: string
+  name: string
+  type: 'prompts' | 'notebook'
+  createdAt?: Date
+  updatedAt?: Date
+}
+
+export interface Note {
+  id: string
+  notebookId: string
+  title: string
+  content: string
+  type: 'text' | 'spreadsheet'
+  createdAt?: Date
+  updatedAt?: Date
+}
+
 export interface AppData {
   folders: Folder[]
   prompts: Prompt[]
   tags: string[]
   tagCategories: TagCategory[]
+  notebooks: Notebook[]
+  notes: Note[]
 }

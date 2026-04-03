@@ -85,6 +85,52 @@ const api = {
   async deleteTagCategory(id) {
     const res = await fetch(`/api/tag-categories/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete tag category');
+  },
+  // Notebook APIs
+  async createNotebook(name, type = 'notebook') {
+    const res = await fetch('/api/notebooks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, type })
+    });
+    if (!res.ok) throw new Error('Failed to create notebook');
+    return res.json();
+  },
+  async updateNotebook(id, name) {
+    const res = await fetch(`/api/notebooks/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    if (!res.ok) throw new Error('Failed to update notebook');
+    return res.json();
+  },
+  async deleteNotebook(id) {
+    const res = await fetch(`/api/notebooks/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete notebook');
+  },
+  // Note APIs
+  async createNote(notebookId, title, content, type = 'text') {
+    const res = await fetch('/api/notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notebookId, title, content, type })
+    });
+    if (!res.ok) throw new Error('Failed to create note');
+    return res.json();
+  },
+  async updateNote(id, title, content) {
+    const res = await fetch(`/api/notes/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, content })
+    });
+    if (!res.ok) throw new Error('Failed to update note');
+    return res.json();
+  },
+  async deleteNote(id) {
+    const res = await fetch(`/api/notes/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete note');
   }
 };
 
@@ -135,10 +181,8 @@ export default function PromptRepository() {
 
   // Drawer and Notebook state
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [notebooks, setNotebooks] = useState([
-    { id: 'note1', name: 'Prompts', type: 'prompts', icon: 'FileText', color: 'blue' }
-  ]);
-  const [activeNotebook, setActiveNotebook] = useState('note1');
+  const [notebooks, setNotebooks] = useState([]);
+  const [activeNotebook, setActiveNotebook] = useState(null);
   const [showNewNotebook, setShowNewNotebook] = useState(false);
   const [newNotebookName, setNewNotebookName] = useState('');
 
@@ -162,44 +206,54 @@ export default function PromptRepository() {
   };
 
   // Notebook management functions
-  const createNotebook = () => {
+  const createNotebook = async () => {
     if (!newNotebookName.trim()) return;
-    const newNotebook = {
-      id: generateId(),
-      name: newNotebookName.trim(),
-      type: 'notes',
-      icon: 'Notebook',
-      color: 'purple',
-      createdAt: new Date().toISOString()
-    };
-    setNotebooks(prev => [...prev, newNotebook]);
-    setNewNotebookName('');
-    setShowNewNotebook(false);
-    setActiveNotebook(newNotebook.id);
-    showNotif(`Created notebook "${newNotebook.name}"`);
+    try {
+      const newNotebook = await api.createNotebook(newNotebookName.trim(), 'notebook');
+      setNotebooks(prev => [...prev, newNotebook]);
+      setNewNotebookName('');
+      setShowNewNotebook(false);
+      setActiveNotebook(newNotebook.id);
+      showNotif(`Created notebook "${newNotebook.name}"`);
+    } catch (e) {
+      console.error('Error creating notebook:', e);
+      showNotif('Failed to create notebook');
+    }
   };
 
-  const deleteNotebook = (notebookId) => {
+  const deleteNotebook = async (notebookId) => {
     if (notebookId === 'note1') {
       showNotif('Cannot delete the Prompts notebook');
       return;
     }
     const notebook = notebooks.find(n => n.id === notebookId);
     if (confirm(`Delete notebook "${notebook?.name}" and all its notes?`)) {
-      setNotebooks(prev => prev.filter(n => n.id !== notebookId));
-      setNotes(prev => prev.filter(n => n.notebookId !== notebookId));
-      if (activeNotebook === notebookId) {
-        setActiveNotebook('note1');
+      try {
+        await api.deleteNotebook(notebookId);
+        setNotebooks(prev => prev.filter(n => n.id !== notebookId));
+        setNotes(prev => prev.filter(n => n.notebookId !== notebookId));
+        if (activeNotebook === notebookId) {
+          setActiveNotebook('note1');
+        }
+        showNotif(`Deleted notebook "${notebook?.name}"`);
+      } catch (e) {
+        console.error('Error deleting notebook:', e);
+        showNotif('Failed to delete notebook');
       }
-      showNotif(`Deleted notebook "${notebook?.name}"`);
     }
   };
 
-  const renameNotebook = (notebookId, newName) => {
+  const renameNotebook = async (notebookId, newName) => {
     if (!newName.trim()) return;
-    setNotebooks(prev => prev.map(n =>
-      n.id === notebookId ? { ...n, name: newName.trim() } : n
-    ));
+    try {
+      await api.updateNotebook(notebookId, newName.trim());
+      setNotebooks(prev => prev.map(n =>
+        n.id === notebookId ? { ...n, name: newName.trim() } : n
+      ));
+    } catch (e) {
+      console.error('Error renaming notebook:', e);
+      showNotif('Failed to rename notebook');
+    }
   };
 
   // Notes management functions
@@ -207,7 +261,7 @@ export default function PromptRepository() {
     return notes.filter(n => n.notebookId === notebookId);
   };
 
-  const createNote = () => {
+  const createNote = async () => {
     if (!noteForm.title.trim()) {
       showNotif('Please enter a title');
       return;
@@ -227,38 +281,48 @@ export default function PromptRepository() {
       });
     }
 
-    const newNote = {
-      id: generateId(),
-      notebookId: activeNotebook,
-      title: noteForm.title.trim(),
-      content: initialContent,
-      type: noteForm.type,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    setNotes(prev => [...prev, newNote]);
-    setNoteForm({ title: '', content: '', type: 'text' });
-    setShowNewNote(false);
-    setActiveNote(newNote.id);
-    showNotif('Note created');
+    try {
+      const newNote = await api.createNote(activeNotebook, noteForm.title.trim(), initialContent, noteForm.type);
+      setNotes(prev => [...prev, newNote]);
+      setNoteForm({ title: '', content: '', type: 'text' });
+      setShowNewNote(false);
+      setActiveNote(newNote.id);
+      showNotif('Note created');
+    } catch (e) {
+      console.error('Error creating note:', e);
+      showNotif('Failed to create note');
+    }
   };
 
-  const updateNote = (noteId, updates) => {
-    setNotes(prev => prev.map(n =>
-      n.id === noteId ? { ...n, ...updates, updatedAt: new Date().toISOString() } : n
-    ));
-    setEditingNoteId(null);
-    showNotif('Note updated');
+  const updateNote = async (noteId, updates) => {
+    try {
+      const note = notes.find(n => n.id === noteId);
+      const updatedNote = await api.updateNote(noteId, updates.title || note.title, updates.content !== undefined ? updates.content : note.content);
+      setNotes(prev => prev.map(n =>
+        n.id === noteId ? { ...n, ...updatedNote } : n
+      ));
+      setEditingNoteId(null);
+      showNotif('Note updated');
+    } catch (e) {
+      console.error('Error updating note:', e);
+      showNotif('Failed to update note');
+    }
   };
 
-  const deleteNote = (noteId) => {
+  const deleteNote = async (noteId) => {
     const note = notes.find(n => n.id === noteId);
     if (confirm(`Delete note "${note?.title}"?`)) {
-      setNotes(prev => prev.filter(n => n.id !== noteId));
-      if (activeNote === noteId) {
-        setActiveNote(null);
+      try {
+        await api.deleteNote(noteId);
+        setNotes(prev => prev.filter(n => n.id !== noteId));
+        if (activeNote === noteId) {
+          setActiveNote(null);
+        }
+        showNotif('Note deleted');
+      } catch (e) {
+        console.error('Error deleting note:', e);
+        showNotif('Failed to delete note');
       }
-      showNotif('Note deleted');
     }
   };
 
@@ -279,6 +343,14 @@ export default function PromptRepository() {
         // Expand root folders by default
         const rootFolderIds = result.folders?.filter(f => !f.parentId).map(f => f.id) || [];
         setExpandedFolders(new Set(rootFolderIds));
+        // Load notebooks and notes
+        if (result.notebooks && result.notebooks.length > 0) {
+          setNotebooks(result.notebooks);
+          setActiveNotebook(result.notebooks[0].id);
+        }
+        if (result.notes) {
+          setNotes(result.notes);
+        }
       } catch (e) {
         console.error('Error loading data:', e);
         showNotif('Failed to load data from server');
@@ -2440,19 +2512,17 @@ export default function PromptRepository() {
           ))}
         </div>
 
-        {/* Drawer Footer - Add Notebook */}
-        {drawerOpen && (
-          <div className="p-4 border-t border-zinc-800">
-            <button
-              onClick={() => setShowNewNotebook(true)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors"
-              title="Create new notebook"
-            >
-              <Plus size={16} />
-              <span>New Notebook</span>
-            </button>
-          </div>
-        )}
+        {/* Drawer Footer - Add Notebook (sticky at bottom) */}
+        <div className="p-4 border-t border-zinc-800 mt-auto">
+          <button
+            onClick={() => setShowNewNotebook(true)}
+            className={`w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors ${!drawerOpen ? 'px-0' : ''}`}
+            title="Create new notebook"
+          >
+            <Plus size={16} />
+            {drawerOpen && <span>New Notebook</span>}
+          </button>
+        </div>
       </div>
 
       {/* Main Content Area */}
