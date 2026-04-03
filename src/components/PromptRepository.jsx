@@ -2355,9 +2355,9 @@ export default function PromptRepository() {
     };
 
     return (
-      <div className="h-full flex flex-col">
+      <div className="h-full flex flex-col min-h-0">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <div className="flex items-center gap-2 mb-4 flex-wrap flex-shrink-0">
           <button
             onClick={addRow}
             className="flex items-center gap-1 px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded"
@@ -2389,8 +2389,8 @@ export default function PromptRepository() {
         </div>
 
         {/* Table */}
-        <div className="flex-1 overflow-auto border border-zinc-700 rounded">
-          <table className="border-collapse min-w-full">
+        <div className="flex-1 overflow-auto border border-zinc-700 rounded min-h-0" style={{ scrollbarWidth: 'thin', scrollbarColor: '#52525b #27272a' }}>
+          <table className="border-collapse" style={{ minWidth: 'max-content' }}>
             <thead className="sticky top-0 z-10">
               <tr>
                 <th className="w-10 bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 sticky left-0 z-20">#</th>
@@ -2638,7 +2638,7 @@ export default function PromptRepository() {
               </div>
 
               {/* Note Content */}
-              <div className="flex-1 p-4 overflow-auto">
+              <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
                 {currentNote.type === 'spreadsheet' ? (
                   <SpreadsheetEditor
                     note={currentNote}
