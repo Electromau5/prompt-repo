@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
 const generateId = () => Math.random().toString(36).substr(2, 9);
@@ -2178,10 +2179,94 @@ export default function PromptRepository() {
       updateSpreadsheet({ columns: newColumns, rows: newRows });
     };
 
+    // File upload ref
+    const fileInputRef = useRef(null);
+
+    // Handle file upload (CSV and Excel)
+    const handleFileUpload = (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith('.csv')) {
+        // Parse CSV
+        reader.onload = (e) => {
+          const text = e.target?.result;
+          if (typeof text === 'string') {
+            const lines = text.split('\n').filter(line => line.trim());
+            if (lines.length > 0) {
+              // First line is headers
+              const headers = parseCSVLine(lines[0]);
+              const rows = lines.slice(1).map(line => {
+                const cells = parseCSVLine(line);
+                // Ensure each row has the same number of columns as headers
+                while (cells.length < headers.length) cells.push('');
+                return cells.slice(0, headers.length);
+              });
+              updateSpreadsheet({ columns: headers, rows: rows.length > 0 ? rows : [[]] });
+            }
+          }
+        };
+        reader.readAsText(file);
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Parse Excel
+        reader.onload = (e) => {
+          const data = e.target?.result;
+          const workbook = XLSX.read(data, { type: 'array' });
+          const firstSheetName = workbook.SheetNames[0];
+          const worksheet = workbook.Sheets[firstSheetName];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+          if (jsonData.length > 0) {
+            const headers = (jsonData[0] || []).map(h => String(h || ''));
+            const rows = jsonData.slice(1).map(row => {
+              const cells = (row || []).map(cell => String(cell || ''));
+              // Ensure each row has the same number of columns as headers
+              while (cells.length < headers.length) cells.push('');
+              return cells.slice(0, headers.length);
+            });
+            updateSpreadsheet({
+              columns: headers.length > 0 ? headers : ['Column A'],
+              rows: rows.length > 0 ? rows : [['']]
+            });
+          }
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        alert('Please upload a CSV or Excel file (.csv, .xlsx, .xls)');
+      }
+
+      // Reset input so same file can be uploaded again
+      event.target.value = '';
+    };
+
+    // Parse CSV line handling quoted values
+    const parseCSVLine = (line) => {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          result.push(current.trim());
+          current = '';
+        } else {
+          current += char;
+        }
+      }
+      result.push(current.trim());
+      return result;
+    };
+
     return (
       <div className="h-full flex flex-col">
         {/* Toolbar */}
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 flex-wrap">
           <button
             onClick={addRow}
             className="flex items-center gap-1 px-3 py-1.5 text-sm bg-zinc-700 hover:bg-zinc-600 rounded"
@@ -2194,6 +2279,19 @@ export default function PromptRepository() {
           >
             <Plus size={14} /> Add Column
           </button>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+          >
+            <Upload size={14} /> Import Spreadsheet
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv,.xlsx,.xls"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
           <span className="text-xs text-zinc-500 ml-2">
             {spreadsheetData.rows.length} rows × {spreadsheetData.columns.length} columns
           </span>
