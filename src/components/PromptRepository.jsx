@@ -1340,10 +1340,51 @@ export default function PromptRepository() {
     }
   };
 
+  // Helper function to get display content for a prompt (handles structured prompts)
+  const getPromptDisplayContent = (content) => {
+    try {
+      const parsed = JSON.parse(content);
+      if (parsed._structured) {
+        // Generate combined prompt from structured fields
+        const sections = [];
+        if (parsed.roleDetails?.trim()) {
+          sections.push(`## Role\n${parsed.roleDetails.trim()}`);
+        }
+        if (parsed.objective?.trim()) {
+          sections.push(`## Objective\n${parsed.objective.trim()}`);
+        }
+        if (parsed.tasks?.trim()) {
+          sections.push(`## Tasks\n${parsed.tasks.trim()}`);
+        }
+        if (parsed.successCriteria?.trim()) {
+          sections.push(`## Success Criteria\n${parsed.successCriteria.trim()}`);
+        }
+        if (parsed.constraints?.trim()) {
+          sections.push(`## Constraints\n${parsed.constraints.trim()}`);
+        }
+        if (parsed.outputRequirements?.trim()) {
+          sections.push(`## Output Requirements\n${parsed.outputRequirements.trim()}`);
+        }
+        return sections.join('\n\n');
+      }
+    } catch {}
+    return content;
+  };
+
+  // Check if a prompt is structured
+  const isStructuredPrompt = (content) => {
+    try {
+      const parsed = JSON.parse(content);
+      return parsed._structured === true;
+    } catch {}
+    return false;
+  };
+
   const copyPrompt = (content, id) => {
     try {
+      const displayContent = getPromptDisplayContent(content);
       const textArea = document.createElement('textarea');
-      textArea.value = content;
+      textArea.value = displayContent;
       textArea.style.position = 'fixed';
       textArea.style.left = '-999999px';
       textArea.style.top = '-999999px';
@@ -2042,7 +2083,12 @@ export default function PromptRepository() {
         </div>
         {isExpanded && (
           <div className="px-3 pb-3 pt-1 border-t border-zinc-700 bg-zinc-900/50">
-            <pre className="text-xs text-zinc-300 bg-zinc-900 rounded p-3 whitespace-pre-wrap font-mono mb-3 max-h-64 overflow-auto">{prompt.content}</pre>
+            <pre className="text-xs text-zinc-300 bg-zinc-900 rounded p-3 whitespace-pre-wrap font-mono mb-3 max-h-64 overflow-auto">{getPromptDisplayContent(prompt.content)}</pre>
+            {isStructuredPrompt(prompt.content) && (
+              <div className="text-xs text-purple-400 mb-2 flex items-center gap-1">
+                <span className="px-1.5 py-0.5 bg-purple-500/20 rounded">Structured Prompt</span>
+              </div>
+            )}
             <div className="flex flex-wrap gap-1 mb-3">
               {prompt.tags.map(tag => <span key={tag} className="text-xs px-2 py-0.5 bg-zinc-700 rounded">{tag}</span>)}
             </div>
@@ -2360,8 +2406,69 @@ export default function PromptRepository() {
     onOpenNewSubfolder,
   }) => {
     const initialTags = prompt ? prompt.tags : getInheritedTags(defaultFolderId);
+
+    // Parse structured data from content if it exists
+    const parseStructuredContent = (content) => {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed._structured) {
+          return parsed;
+        }
+      } catch {}
+      return null;
+    };
+
+    const existingStructured = prompt ? parseStructuredContent(prompt.content) : null;
+
     const [form, setForm] = useState(prompt || { title: '', content: '', folderId: defaultFolderId || data.folders[0]?.id, tags: initialTags });
     const [tagInput, setTagInput] = useState('');
+    const [promptMode, setPromptMode] = useState(existingStructured ? 'structured' : 'freeform');
+    const [structuredFields, setStructuredFields] = useState(existingStructured || {
+      _structured: true,
+      roleDetails: '',
+      objective: '',
+      tasks: '',
+      successCriteria: '',
+      constraints: '',
+      outputRequirements: ''
+    });
+
+    // Generate combined prompt from structured fields
+    const generateCombinedPrompt = () => {
+      const sections = [];
+
+      if (structuredFields.roleDetails?.trim()) {
+        sections.push(`## Role\n${structuredFields.roleDetails.trim()}`);
+      }
+      if (structuredFields.objective?.trim()) {
+        sections.push(`## Objective\n${structuredFields.objective.trim()}`);
+      }
+      if (structuredFields.tasks?.trim()) {
+        sections.push(`## Tasks\n${structuredFields.tasks.trim()}`);
+      }
+      if (structuredFields.successCriteria?.trim()) {
+        sections.push(`## Success Criteria\n${structuredFields.successCriteria.trim()}`);
+      }
+      if (structuredFields.constraints?.trim()) {
+        sections.push(`## Constraints\n${structuredFields.constraints.trim()}`);
+      }
+      if (structuredFields.outputRequirements?.trim()) {
+        sections.push(`## Output Requirements\n${structuredFields.outputRequirements.trim()}`);
+      }
+
+      return sections.join('\n\n');
+    };
+
+    const handleSave = () => {
+      if (promptMode === 'structured') {
+        // Store structured data as JSON so we can parse it later for editing
+        const structuredContent = JSON.stringify(structuredFields);
+        onSave({ ...form, content: structuredContent });
+      } else {
+        onSave(form);
+      }
+    };
+
     const handleFolderChange = (newFolderId) => {
       if (!prompt) {
         setForm(f => ({ ...f, folderId: newFolderId, tags: getInheritedTags(newFolderId) }));
@@ -2393,6 +2500,38 @@ export default function PromptRepository() {
             <button onClick={onClose} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
           </div>
           <div className="p-4 space-y-4">
+            {/* Prompt Mode Toggle */}
+            <div>
+              <label className="text-sm text-zinc-400 mb-2 block">Prompt Type</label>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPromptMode('freeform')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    promptMode === 'freeform'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
+                >
+                  Freeform
+                </button>
+                <button
+                  onClick={() => setPromptMode('structured')}
+                  className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
+                    promptMode === 'structured'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                  }`}
+                >
+                  Structured
+                </button>
+              </div>
+              <p className="text-xs text-zinc-500 mt-1">
+                {promptMode === 'freeform'
+                  ? 'Write your prompt freely in any format'
+                  : 'Fill out structured fields to generate a well-organized prompt'}
+              </p>
+            </div>
+
             <div>
               <label className="text-sm text-zinc-400 mb-1 block">Title</label>
               <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="w-full bg-zinc-900 rounded px-3 py-2 text-sm" placeholder="Prompt title..." />
@@ -2426,10 +2565,103 @@ export default function PromptRepository() {
                 </button>
               </div>
             </div>
-            <div>
-              <label className="text-sm text-zinc-400 mb-1 block">Prompt Content</label>
-              <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={8} className="w-full bg-zinc-900 rounded px-3 py-2 text-sm font-mono" placeholder="Enter your prompt..." />
-            </div>
+
+            {/* Freeform Mode - Single Content Field */}
+            {promptMode === 'freeform' && (
+              <div>
+                <label className="text-sm text-zinc-400 mb-1 block">Prompt Content</label>
+                <textarea value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} rows={8} className="w-full bg-zinc-900 rounded px-3 py-2 text-sm font-mono" placeholder="Enter your prompt..." />
+              </div>
+            )}
+
+            {/* Structured Mode - Multiple Fields */}
+            {promptMode === 'structured' && (
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Role Details</label>
+                  <textarea
+                    value={structuredFields.roleDetails}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, roleDetails: e.target.value })}
+                    rows={3}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="Define the role or persona the AI should adopt (e.g., 'You are an expert software architect with 20 years of experience...')"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Objective</label>
+                  <textarea
+                    value={structuredFields.objective}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, objective: e.target.value })}
+                    rows={2}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="What is the main goal or purpose of this prompt?"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Tasks</label>
+                  <textarea
+                    value={structuredFields.tasks}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, tasks: e.target.value })}
+                    rows={4}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="List the specific tasks or steps to complete (one per line):&#10;1. Analyze the requirements&#10;2. Propose solutions&#10;3. Review and refine"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Success Criteria</label>
+                  <textarea
+                    value={structuredFields.successCriteria}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, successCriteria: e.target.value })}
+                    rows={2}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="How will success be measured? What defines a good output?"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Constraints</label>
+                  <textarea
+                    value={structuredFields.constraints}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, constraints: e.target.value })}
+                    rows={2}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="Any limitations, restrictions, or things to avoid?"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-zinc-400 mb-1 block">Output Requirements</label>
+                  <textarea
+                    value={structuredFields.outputRequirements}
+                    onChange={(e) => setStructuredFields({ ...structuredFields, outputRequirements: e.target.value })}
+                    rows={2}
+                    className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                    placeholder="Specify the desired format, length, or structure of the output"
+                  />
+                </div>
+
+                {/* Preview of combined prompt */}
+                {(structuredFields.roleDetails || structuredFields.objective || structuredFields.tasks ||
+                  structuredFields.successCriteria || structuredFields.constraints || structuredFields.outputRequirements) && (
+                  <div className="border border-zinc-700 rounded-lg p-3 bg-zinc-900/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm text-zinc-400">Preview (Combined Prompt)</label>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(generateCombinedPrompt());
+                          showNotif('Prompt copied to clipboard');
+                        }}
+                        className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 rounded flex items-center gap-1"
+                      >
+                        <Copy size={12} /> Copy
+                      </button>
+                    </div>
+                    <pre className="text-xs text-zinc-300 whitespace-pre-wrap font-mono max-h-48 overflow-auto">
+                      {generateCombinedPrompt()}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div>
               <label className="text-sm text-zinc-400 mb-1 block">Tags</label>
               <div className="flex flex-wrap gap-2 mb-2">
@@ -2478,7 +2710,7 @@ export default function PromptRepository() {
           </div>
           <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
             <button onClick={onClose} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
-            <button onClick={() => onSave(form)} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded flex items-center gap-2"><Save size={14} /> Save</button>
+            <button onClick={handleSave} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded flex items-center gap-2"><Save size={14} /> Save</button>
           </div>
         </div>
       </div>
@@ -4622,7 +4854,7 @@ export default function PromptRepository() {
                               <div className="flex-1 min-w-0">
                                 <div className="font-medium text-sm truncate">{prompt.title}</div>
                                 {folder && <div className="text-xs text-zinc-500">in {folder.name}</div>}
-                                <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{prompt.content}</div>
+                                <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{getPromptDisplayContent(prompt.content)}</div>
                               </div>
                             </div>
                           </div>
@@ -4729,7 +4961,7 @@ export default function PromptRepository() {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-sm truncate">{prompt.title}</div>
-                              <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{prompt.content}</div>
+                              <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{getPromptDisplayContent(prompt.content)}</div>
                             </div>
                           </div>
                         </div>
@@ -4940,7 +5172,7 @@ export default function PromptRepository() {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="text-sm font-medium">{prompt.title}</div>
-                              <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{prompt.content.substring(0, 150)}{prompt.content.length > 150 ? '...' : ''}</div>
+                              <div className="text-xs text-zinc-500 mt-1 line-clamp-2">{getPromptDisplayContent(prompt.content).substring(0, 150)}{getPromptDisplayContent(prompt.content).length > 150 ? '...' : ''}</div>
                               {prompt.tags?.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-2">
                                   {prompt.tags.map(tag => (
