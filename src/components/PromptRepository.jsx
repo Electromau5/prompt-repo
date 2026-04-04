@@ -2493,13 +2493,13 @@ export default function PromptRepository() {
     }, [newlyCreatedFolderId]);
 
     return (
-      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[90vh] overflow-auto">
-          <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+      <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+        <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
             <h2 className="font-semibold">{prompt ? 'Edit Prompt' : 'New Prompt'}</h2>
             <button onClick={onClose} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
           </div>
-          <div className="p-4 space-y-4">
+          <div className="p-4 space-y-4 flex-1 modal-scroll">
             {/* Prompt Mode Toggle */}
             <div>
               <label className="text-sm text-zinc-400 mb-2 block">Prompt Type</label>
@@ -2708,7 +2708,7 @@ export default function PromptRepository() {
               </div>
             </div>
           </div>
-          <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+          <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
             <button onClick={onClose} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
             <button onClick={handleSave} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded flex items-center gap-2"><Save size={14} /> Save</button>
           </div>
@@ -3313,23 +3313,33 @@ export default function PromptRepository() {
 
         {/* Dropdown options editor modal */}
         {dropdownOptionsEdit && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setDropdownOptionsEdit(null)}>
-            <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4 w-80" onClick={(e) => e.stopPropagation()}>
-              <h3 className="text-sm font-medium mb-3">Configure Dropdown Options</h3>
-              <p className="text-xs text-zinc-400 mb-3">Enter each option on a new line:</p>
-              <textarea
-                value={dropdownOptionsEdit.options.join('\n')}
-                onChange={(e) => setDropdownOptionsEdit({
-                  ...dropdownOptionsEdit,
-                  options: e.target.value.split('\n').filter(o => o.trim())
-                })}
-                className="w-full h-32 bg-zinc-800 border border-zinc-700 rounded p-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                placeholder="Option 1&#10;Option 2&#10;Option 3"
-              />
-              <div className="flex justify-end gap-2 mt-3">
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50" onClick={() => setDropdownOptionsEdit(null)}>
+            <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
+                <h3 className="text-lg font-medium">Configure Dropdown Options</h3>
                 <button
                   onClick={() => setDropdownOptionsEdit(null)}
-                  className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded"
+                  className="text-zinc-400 hover:text-white"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              <div className="p-4 flex-1 modal-scroll">
+                <p className="text-sm text-zinc-400 mb-3">Enter each option on a new line:</p>
+                <textarea
+                  value={dropdownOptionsEdit.options.join('\n')}
+                  onChange={(e) => setDropdownOptionsEdit({
+                    ...dropdownOptionsEdit,
+                    options: e.target.value.split('\n').filter(o => o.trim())
+                  })}
+                  className="w-full h-64 bg-zinc-900 border border-zinc-700 rounded p-3 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder="Option 1&#10;Option 2&#10;Option 3"
+                />
+              </div>
+              <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
+                <button
+                  onClick={() => setDropdownOptionsEdit(null)}
+                  className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
                 >
                   Cancel
                 </button>
@@ -3338,7 +3348,7 @@ export default function PromptRepository() {
                     updateColumnType(dropdownOptionsEdit.colIndex, 'dropdown', dropdownOptionsEdit.options);
                     setDropdownOptionsEdit(null);
                   }}
-                  className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded"
+                  className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 rounded"
                 >
                   Save
                 </button>
@@ -4045,9 +4055,9 @@ export default function PromptRepository() {
 
       {/* Move Note Modal */}
       {showMoveNote && movingNoteId && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
                 <Move size={20} className="text-blue-500" />
                 Move Note to Notebook
@@ -4056,11 +4066,11 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 flex-1 modal-scroll">
               <p className="text-sm text-zinc-400 mb-4">
                 Select a notebook to move "{notes.find(n => n.id === movingNoteId)?.title}" to:
               </p>
-              <div className="space-y-2 max-h-64 overflow-auto">
+              <div className="space-y-2">
                 {notebooks.filter(n => n.type !== 'prompts' && n.id !== notes.find(note => note.id === movingNoteId)?.notebookId).map(notebook => (
                   <button
                     key={notebook.id}
@@ -4083,7 +4093,7 @@ export default function PromptRepository() {
                 )}
               </div>
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button
                 onClick={() => { setShowMoveNote(false); setMovingNoteId(null); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
@@ -4097,9 +4107,9 @@ export default function PromptRepository() {
 
       {/* New Notebook Modal */}
       {showNewNotebook && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-md overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
                 <Notebook size={20} className="text-purple-500" />
                 Create New Notebook
@@ -4108,7 +4118,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4">
+            <div className="p-4 flex-1 modal-scroll">
               <label className="block text-sm text-zinc-400 mb-2">Notebook Name</label>
               <input
                 type="text"
@@ -4123,7 +4133,7 @@ export default function PromptRepository() {
                 Create a notebook to organize your notes. You can add, edit, and delete notes within each notebook.
               </p>
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button
                 onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
@@ -4144,9 +4154,9 @@ export default function PromptRepository() {
 
       {/* New Note Modal */}
       {showNewNote && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
                 {noteForm.type === 'spreadsheet' ? (
                   <Table size={20} className="text-green-500" />
@@ -4161,7 +4171,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 space-y-4">
+            <div className="p-4 space-y-4 flex-1 modal-scroll">
               {/* Template Selection */}
               <div>
                 <label className="block text-sm text-zinc-400 mb-2">Template</label>
@@ -4337,7 +4347,7 @@ export default function PromptRepository() {
                 </>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button
                 onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
@@ -4380,25 +4390,32 @@ export default function PromptRepository() {
       )}
       {showNewFolder && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[60]">
-          <div className="bg-zinc-800 rounded-lg p-4 w-96">
-            <h3 className="font-semibold mb-3">New Folder</h3>
-            <input
-              id="new-folder-input"
-              autoFocus
-              placeholder="Folder name..."
-              className="w-full bg-zinc-900 rounded px-3 py-2 text-sm mb-3"
-              onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) addFolder(e.target.value.trim(), newFolderParent); }}
-            />
-            <div className="mb-3">
-              <label className="text-sm text-zinc-400 mb-1 block">Parent Folder</label>
-              <FolderPathSelector
-                selectedFolderId={newFolderParent}
-                onSelect={(folderId) => setNewFolderParent(folderId)}
-                folders={data.folders}
-                includeRootInSearch
-              />
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
+              <h3 className="font-semibold">New Folder</h3>
+              <button onClick={() => { setShowNewFolder(false); setNewFolderParent(null); }} className="p-1 hover:bg-zinc-700 rounded">
+                <X size={18} />
+              </button>
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="p-4 flex-1 modal-scroll">
+              <input
+                id="new-folder-input"
+                autoFocus
+                placeholder="Folder name..."
+                className="w-full bg-zinc-900 rounded px-3 py-2 text-sm mb-3"
+                onKeyDown={(e) => { if (e.key === 'Enter' && e.target.value.trim()) addFolder(e.target.value.trim(), newFolderParent); }}
+              />
+              <div className="mb-3">
+                <label className="text-sm text-zinc-400 mb-1 block">Parent Folder</label>
+                <FolderPathSelector
+                  selectedFolderId={newFolderParent}
+                  onSelect={(folderId) => setNewFolderParent(folderId)}
+                  folders={data.folders}
+                  includeRootInSearch
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => { setShowNewFolder(false); setNewFolderParent(null); }} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
               <button onClick={() => { const input = document.getElementById('new-folder-input'); if (input?.value.trim()) addFolder(input.value.trim(), newFolderParent); }} className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded">Create</button>
             </div>
@@ -4427,13 +4444,13 @@ export default function PromptRepository() {
 
       {/* Backup/Restore Modal */}
       {showBackupRestore && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold">Restore from Backup</h2>
               <button onClick={() => { setShowBackupRestore(false); setBackupPreview(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 overflow-auto flex-1">
+            <div className="p-4 flex-1 modal-scroll">
               {!backupPreview ? (
                 <div>
                   <div className="border-2 border-dashed border-zinc-600 rounded-lg p-8 text-center mb-4">
@@ -4544,16 +4561,21 @@ export default function PromptRepository() {
       {/* Rename Folder Modal */}
       {renameFolder && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 rounded-lg p-4 w-80">
-            <h3 className="font-semibold mb-3">Rename Folder</h3>
-            <input
-              autoFocus
-              value={renameFolderValue}
-              onChange={(e) => setRenameFolderValue(e.target.value)}
-              className="w-full bg-zinc-900 rounded px-3 py-2 text-sm mb-3"
-              onKeyDown={(e) => { if (e.key === 'Enter' && renameFolderValue.trim()) { updateFolder(renameFolder, renameFolderValue.trim()); setRenameFolder(null); } }}
-            />
-            <div className="flex justify-end gap-2">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
+              <h3 className="font-semibold">Rename Folder</h3>
+              <button onClick={() => setRenameFolder(null)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
+            </div>
+            <div className="p-4 flex-1 modal-scroll">
+              <input
+                autoFocus
+                value={renameFolderValue}
+                onChange={(e) => setRenameFolderValue(e.target.value)}
+                className="w-full bg-zinc-900 rounded px-3 py-2 text-sm"
+                onKeyDown={(e) => { if (e.key === 'Enter' && renameFolderValue.trim()) { updateFolder(renameFolder, renameFolderValue.trim()); setRenameFolder(null); } }}
+              />
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => setRenameFolder(null)} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
               <button onClick={() => { if (renameFolderValue.trim()) { updateFolder(renameFolder, renameFolderValue.trim()); setRenameFolder(null); } }} className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 rounded">Rename</button>
             </div>
@@ -4564,21 +4586,27 @@ export default function PromptRepository() {
       {/* Move Prompt Modal */}
       {movingPrompt && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 rounded-lg p-4 w-96">
-            <h3 className="font-semibold mb-1">Move Prompt</h3>
-            <p className="text-sm text-zinc-400 mb-4">"{movingPrompt.title}"</p>
-            <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                type="text"
-                placeholder="Search folders..."
-                className="w-full bg-zinc-900 rounded px-3 py-2 pl-9 text-sm"
-                onChange={(e) => setMovingPrompt({ ...movingPrompt, search: e.target.value })}
-                value={movingPrompt.search || ''}
-                autoFocus
-              />
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
+              <div>
+                <h3 className="font-semibold">Move Prompt</h3>
+                <p className="text-sm text-zinc-400">"{movingPrompt.title}"</p>
+              </div>
+              <button onClick={() => setMovingPrompt(null)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="max-h-64 overflow-auto bg-zinc-900 rounded-lg mb-4">
+            <div className="p-4 flex-1 modal-scroll">
+              <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <input
+                  type="text"
+                  placeholder="Search folders..."
+                  className="w-full bg-zinc-900 rounded px-3 py-2 pl-9 text-sm"
+                  onChange={(e) => setMovingPrompt({ ...movingPrompt, search: e.target.value })}
+                  value={movingPrompt.search || ''}
+                  autoFocus
+                />
+              </div>
+              <div className="bg-zinc-900 rounded-lg">
               {getSortedFoldersHierarchically()
                 .filter(f => {
                   if (!movingPrompt.search) return true;
@@ -4609,8 +4637,9 @@ export default function PromptRepository() {
               }).length === 0 && (
                   <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
                 )}
+              </div>
             </div>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => setMovingPrompt(null)} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
             </div>
           </div>
@@ -4620,13 +4649,17 @@ export default function PromptRepository() {
       {/* Bulk Move Modal */}
       {showBulkMove && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 rounded-lg p-4 w-96">
-            <h3 className="font-semibold mb-1">Move Prompts</h3>
-            <p className="text-sm text-zinc-400 mb-4">
-              Move {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} to a folder
-            </p>
-            <div className="relative mb-3">
-              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
+              <div>
+                <h3 className="font-semibold">Move Prompts</h3>
+                <p className="text-sm text-zinc-400">Move {selectedPrompts.size} prompt{selectedPrompts.size > 1 ? 's' : ''} to a folder</p>
+              </div>
+              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
+            </div>
+            <div className="p-4 flex-1 modal-scroll">
+              <div className="relative mb-3">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
                 type="text"
                 placeholder="Search folders..."
@@ -4745,12 +4778,12 @@ export default function PromptRepository() {
       {/* Bulk Import Modal */}
       {showBulkImport && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-3xl max-h-[85vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold">Bulk Import Prompts</h2>
               <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] }); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 overflow-auto flex-1">
+            <div className="p-4 flex-1 modal-scroll">
               {bulkImportData.prompts.length === 0 ? (
                 <div>
                   <div className="border-2 border-dashed border-zinc-600 rounded-lg p-8 text-center mb-4">
@@ -4971,7 +5004,7 @@ export default function PromptRepository() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] }); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
               <button
                 onClick={executeBulkImport}
@@ -4992,8 +5025,8 @@ export default function PromptRepository() {
       {/* Merge Duplicates Modal */}
       {showMergeDuplicates && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <div>
                 <h2 className="font-semibold">Merge Duplicate {mergeScopeParentId ? 'Subfolders' : 'Folders'}</h2>
                 {mergeScopeParentId && (
@@ -5004,7 +5037,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); setMergeScopeParentId(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 overflow-auto flex-1">
+            <div className="p-4 flex-1 modal-scroll">
               {duplicateFolders.length === 0 ? (
                 <div className="text-center py-8">
                   <GitMerge size={48} className="mx-auto mb-4 text-zinc-600" />
@@ -5103,7 +5136,7 @@ export default function PromptRepository() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); setMergeScopeParentId(null); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Close</button>
               {duplicateFolders.length > 0 && (
                 <button
@@ -5121,8 +5154,8 @@ export default function PromptRepository() {
       {/* Duplicate Prompts Modal */}
       {showDuplicatePrompts && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <div>
                 <h2 className="font-semibold">Remove Duplicate Prompts</h2>
                 {duplicatePromptsFolderId && (
@@ -5133,7 +5166,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => { setShowDuplicatePrompts(false); setDuplicatePromptGroups([]); setDuplicatePromptsFolderId(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 overflow-auto flex-1">
+            <div className="p-4 flex-1 modal-scroll">
               {duplicatePromptGroups.length === 0 ? (
                 <div className="text-center py-8">
                   <Copy size={48} className="mx-auto mb-4 text-zinc-600" />
@@ -5194,7 +5227,7 @@ export default function PromptRepository() {
                 </div>
               )}
             </div>
-            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700">
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button onClick={() => { setShowDuplicatePrompts(false); setDuplicatePromptGroups([]); setDuplicatePromptsFolderId(null); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
               {duplicatePromptGroups.length > 0 && (
                 <button
@@ -5212,12 +5245,12 @@ export default function PromptRepository() {
       {/* Tag Category Manager Modal */}
       {showTagCategoryManager && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-          <div className="bg-zinc-800 rounded-lg w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+          <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold">Manage Tag Categories</h2>
               <button onClick={() => setShowTagCategoryManager(false)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 overflow-auto flex-1">
+            <div className="p-4 flex-1 modal-scroll">
               <div className="mb-4">
                 <label className="text-sm text-zinc-400 mb-2 block">Add New Category</label>
                 <div className="flex gap-2">
