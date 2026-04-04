@@ -43,6 +43,7 @@ export interface Note {
   type: 'text' | 'spreadsheet' | 'prompt'
   template?: string | null
   tags?: string[]
+  position?: number
   createdAt?: Date
   updatedAt?: Date
 }

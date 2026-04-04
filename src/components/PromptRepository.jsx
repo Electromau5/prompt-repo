@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -159,6 +159,15 @@ const api = {
     });
     if (!res.ok) throw new Error('Failed to convert prompt to note');
     return res.json();
+  },
+  async reorderNotes(notebookId, noteIds) {
+    const res = await fetch('/api/notes/reorder', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notebookId, noteIds })
+    });
+    if (!res.ok) throw new Error('Failed to reorder notes');
+    return res.json();
   }
 };
 
@@ -223,6 +232,9 @@ export default function PromptRepository() {
   const [copiedNoteId, setCopiedNoteId] = useState(null);
   const [showMoveNote, setShowMoveNote] = useState(false);
   const [movingNoteId, setMovingNoteId] = useState(null);
+  const [draggingNote, setDraggingNote] = useState(null);
+  const [dragOverNotebook, setDragOverNotebook] = useState(null);
+  const [dragOverNoteIndex, setDragOverNoteIndex] = useState(null);
   const [notesPanelOpen, setNotesPanelOpen] = useState(true);
 
   // Note template types
@@ -290,7 +302,9 @@ export default function PromptRepository() {
 
   // Notes management functions
   const getNotesForNotebook = (notebookId) => {
-    return notes.filter(n => n.notebookId === notebookId);
+    return notes
+      .filter(n => n.notebookId === notebookId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   };
 
   const createNote = async () => {
@@ -423,6 +437,98 @@ export default function PromptRepository() {
     setCopiedNoteId(noteId);
     setTimeout(() => setCopiedNoteId(null), 2000);
     showNotif('Copied to clipboard');
+  };
+
+  // Drag and drop handlers for notes
+  const handleNoteDragStart = (e, note) => {
+    setDraggingNote(note);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', note.id);
+    // Add a custom drag image or styling
+    e.target.style.opacity = '0.5';
+  };
+
+  const handleNoteDragEnd = (e) => {
+    e.target.style.opacity = '1';
+    setDraggingNote(null);
+    setDragOverNotebook(null);
+    setDragOverNoteIndex(null);
+  };
+
+  const handleNoteDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggingNote) {
+      setDragOverNoteIndex(index);
+    }
+  };
+
+  const handleNotebookDragOver = (e, notebookId) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (draggingNote && draggingNote.notebookId !== notebookId) {
+      setDragOverNotebook(notebookId);
+    }
+  };
+
+  const handleNotebookDragLeave = (e) => {
+    // Only clear if leaving the notebook element entirely
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOverNotebook(null);
+    }
+  };
+
+  const handleNotebookDrop = async (e, notebookId) => {
+    e.preventDefault();
+    setDragOverNotebook(null);
+    if (draggingNote && draggingNote.notebookId !== notebookId) {
+      await moveNoteToNotebook(draggingNote.id, notebookId);
+    }
+    setDraggingNote(null);
+  };
+
+  const handleNoteListDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    setDragOverNoteIndex(null);
+
+    if (!draggingNote) return;
+
+    const notebookNotes = getNotesForNotebook(activeNotebook);
+    const dragIndex = notebookNotes.findIndex(n => n.id === draggingNote.id);
+
+    if (dragIndex === -1 || dragIndex === dropIndex) {
+      setDraggingNote(null);
+      return;
+    }
+
+    // Reorder notes
+    const newNotes = [...notebookNotes];
+    const [removed] = newNotes.splice(dragIndex, 1);
+    newNotes.splice(dropIndex > dragIndex ? dropIndex - 1 : dropIndex, 0, removed);
+
+    const newNoteIds = newNotes.map(n => n.id);
+
+    // Optimistic update
+    const updatedNotes = notes.map(n => {
+      const newIndex = newNoteIds.indexOf(n.id);
+      if (newIndex !== -1) {
+        return { ...n, position: newIndex };
+      }
+      return n;
+    });
+    setNotes(updatedNotes);
+
+    // Persist to server
+    try {
+      await api.reorderNotes(activeNotebook, newNoteIds);
+    } catch (e) {
+      console.error('Error reordering notes:', e);
+      // Refresh notes on error
+      const result = await api.getData();
+      setNotes(result.notes || []);
+    }
+
+    setDraggingNote(null);
   };
 
   // Load data from API on mount
@@ -2893,33 +2999,55 @@ export default function PromptRepository() {
               </div>
             ) : (
               <div className="py-2">
-                {notebookNotes.map(note => (
-                  <button
+                {notebookNotes.map((note, index) => (
+                  <div
                     key={note.id}
+                    draggable
+                    onDragStart={(e) => handleNoteDragStart(e, note)}
+                    onDragEnd={handleNoteDragEnd}
+                    onDragOver={(e) => handleNoteDragOver(e, index)}
+                    onDrop={(e) => handleNoteListDrop(e, index)}
                     onClick={() => setActiveNote(note.id)}
-                    className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors ${
+                    className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors cursor-grab active:cursor-grabbing ${
                       activeNote === note.id
                         ? 'bg-blue-600/20 border-l-2 border-l-blue-500'
-                        : 'hover:bg-zinc-800'
+                        : draggingNote?.id === note.id
+                          ? 'opacity-50'
+                          : dragOverNoteIndex === index && draggingNote
+                            ? 'border-t-2 border-t-blue-500'
+                            : 'hover:bg-zinc-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
+                      <GripVertical size={12} className="text-zinc-600 flex-shrink-0" />
                       {note.type === 'spreadsheet' ? (
                         <Table size={14} className="text-green-500 flex-shrink-0" />
+                      ) : note.type === 'prompt' || note.template === 'prompt' ? (
+                        <MessageSquare size={14} className="text-purple-500 flex-shrink-0" />
                       ) : (
                         <FileText size={14} className="text-blue-500 flex-shrink-0" />
                       )}
                       <span className="font-medium text-sm truncate">{note.title}</span>
                     </div>
-                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2 ml-6">
+                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2 ml-8">
                       {note.type === 'spreadsheet' ? (
                         <span className="text-green-500/70">Spreadsheet</span>
                       ) : (
                         note.content || 'No content'
                       )}
                     </div>
-                  </button>
+                  </div>
                 ))}
+                {/* Drop zone at the end */}
+                {draggingNote && (
+                  <div
+                    onDragOver={(e) => handleNoteDragOver(e, notebookNotes.length)}
+                    onDrop={(e) => handleNoteListDrop(e, notebookNotes.length)}
+                    className={`h-8 mx-2 rounded transition-colors ${
+                      dragOverNoteIndex === notebookNotes.length ? 'bg-blue-500/20 border-2 border-dashed border-blue-500' : ''
+                    }`}
+                  />
+                )}
               </div>
             )}
           </div>}
@@ -3175,17 +3303,22 @@ export default function PromptRepository() {
             <button
               key={notebook.id}
               onClick={() => setActiveNotebook(notebook.id)}
+              onDragOver={(e) => handleNotebookDragOver(e, notebook.id)}
+              onDragLeave={handleNotebookDragLeave}
+              onDrop={(e) => handleNotebookDrop(e, notebook.id)}
               className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${
                 activeNotebook === notebook.id
                   ? 'bg-blue-600/20 text-blue-400 border-r-2 border-blue-500'
-                  : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  : dragOverNotebook === notebook.id
+                    ? 'bg-green-600/30 text-green-400 border-r-2 border-green-500'
+                    : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
               }`}
               title={notebook.name}
             >
               {notebook.type === 'prompts' ? (
-                <FileText size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : ''} />
+                <FileText size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
               ) : (
-                <Notebook size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : ''} />
+                <Notebook size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
               )}
               {drawerOpen && <span className="truncate">{notebook.name}</span>}
             </button>

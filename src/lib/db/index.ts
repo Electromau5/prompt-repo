@@ -345,6 +345,7 @@ export async function getNotes(): Promise<Note[]> {
       n.content,
       n.type,
       n.template,
+      n.position,
       n.created_at as "createdAt",
       n.updated_at as "updatedAt",
       COALESCE(
@@ -355,7 +356,7 @@ export async function getNotes(): Promise<Note[]> {
     LEFT JOIN note_tags nt ON n.id = nt.note_id
     LEFT JOIN tags t ON nt.tag_id = t.id
     GROUP BY n.id
-    ORDER BY n.created_at DESC
+    ORDER BY n.position ASC, n.created_at DESC
   `
   return rows as Note[]
 }
@@ -369,10 +370,16 @@ export async function createNote(
   tags: string[] = []
 ): Promise<Note> {
   const id = generateId()
+  // Get the next position for this notebook
+  const maxPos = await getSQL()`
+    SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM notes WHERE notebook_id = ${notebookId}
+  `
+  const position = maxPos[0]?.next_pos ?? 0
+
   const rows = await getSQL()`
-    INSERT INTO notes (id, notebook_id, title, content, type, template)
-    VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type}, ${template})
-    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
+    INSERT INTO notes (id, notebook_id, title, content, type, template, position)
+    VALUES (${id}, ${notebookId}, ${title}, ${content}, ${type}, ${template}, ${position})
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, position, created_at as "createdAt", updated_at as "updatedAt"
   `
   const note = rows[0] as Note
   note.tags = []
@@ -454,12 +461,21 @@ export async function updateNote(
   return note
 }
 
-export async function moveNote(id: string, newNotebookId: string): Promise<Note> {
+export async function moveNote(id: string, newNotebookId: string, position?: number): Promise<Note> {
+  // Get the max position in the target notebook if position not specified
+  let targetPosition = position
+  if (targetPosition === undefined) {
+    const maxPos = await getSQL()`
+      SELECT COALESCE(MAX(position), -1) + 1 as next_pos FROM notes WHERE notebook_id = ${newNotebookId}
+    `
+    targetPosition = maxPos[0]?.next_pos ?? 0
+  }
+
   const rows = await getSQL()`
     UPDATE notes
-    SET notebook_id = ${newNotebookId}, updated_at = NOW()
+    SET notebook_id = ${newNotebookId}, position = ${targetPosition}, updated_at = NOW()
     WHERE id = ${id}
-    RETURNING id, notebook_id as "notebookId", title, content, type, template, created_at as "createdAt", updated_at as "updatedAt"
+    RETURNING id, notebook_id as "notebookId", title, content, type, template, position, created_at as "createdAt", updated_at as "updatedAt"
   `
   const note = rows[0] as Note
   // Fetch existing tags
@@ -470,6 +486,17 @@ export async function moveNote(id: string, newNotebookId: string): Promise<Note>
   `
   note.tags = tagRows.map(r => r.name as string)
   return note
+}
+
+export async function reorderNotes(notebookId: string, noteIds: string[]): Promise<void> {
+  // Update positions for all notes in the specified order
+  for (let i = 0; i < noteIds.length; i++) {
+    await getSQL()`
+      UPDATE notes
+      SET position = ${i}, updated_at = NOW()
+      WHERE id = ${noteIds[i]} AND notebook_id = ${notebookId}
+    `
+  }
 }
 
 export async function duplicateNote(id: string, targetNotebookId?: string): Promise<Note> {

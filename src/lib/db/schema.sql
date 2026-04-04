@@ -70,6 +70,7 @@ CREATE TABLE notes (
   content TEXT,
   type VARCHAR(50) DEFAULT 'text',
   template VARCHAR(100) DEFAULT NULL,
+  position INTEGER DEFAULT 0,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
