@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -244,6 +244,165 @@ export default function PromptRepository() {
     { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' }
   ];
 
+  // Spreadsheet template categories and templates
+  const spreadsheetCategories = [
+    {
+      id: 'health',
+      name: 'Health',
+      icon: 'Heart',
+      templates: [
+        {
+          id: 'workout-tracker',
+          name: 'Workout Tracker',
+          description: 'Track your exercises, sets, reps, and progress',
+          data: {
+            tables: [{
+              name: 'Workouts',
+              columns: ['Date', 'Exercise', 'Sets', 'Reps', 'Weight (lbs)', 'Notes'],
+              columnWidths: [120, 150, 80, 80, 100, 200],
+              columnTypes: [
+                { type: 'date' },
+                { type: 'dropdown', options: ['Push-ups', 'Pull-ups', 'Squats', 'Deadlift', 'Bench Press', 'Shoulder Press', 'Rows', 'Lunges', 'Plank', 'Other'] },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' }
+              ],
+              rows: [['', '', '', '', '', ''], ['', '', '', '', '', ''], ['', '', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        },
+        {
+          id: 'meal-log',
+          name: 'Meal & Diet Log',
+          description: 'Track meals, calories, and nutrition',
+          data: {
+            tables: [{
+              name: 'Meals',
+              columns: ['Date', 'Meal', 'Food', 'Calories', 'Protein (g)', 'Notes'],
+              columnWidths: [120, 120, 180, 100, 100, 180],
+              columnTypes: [
+                { type: 'date' },
+                { type: 'dropdown', options: ['Breakfast', 'Lunch', 'Dinner', 'Snack'] },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' }
+              ],
+              rows: [['', '', '', '', '', ''], ['', '', '', '', '', ''], ['', '', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        }
+      ]
+    },
+    {
+      id: 'financial',
+      name: 'Financial',
+      icon: 'DollarSign',
+      templates: [
+        {
+          id: 'expense-tracker',
+          name: 'Expense Tracker',
+          description: 'Track daily expenses and spending habits',
+          data: {
+            tables: [{
+              name: 'Expenses',
+              columns: ['Date', 'Category', 'Description', 'Amount ($)', 'Payment Method'],
+              columnWidths: [120, 140, 200, 100, 140],
+              columnTypes: [
+                { type: 'date' },
+                { type: 'dropdown', options: ['Food & Dining', 'Transportation', 'Shopping', 'Bills & Utilities', 'Entertainment', 'Health', 'Travel', 'Education', 'Other'] },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'dropdown', options: ['Cash', 'Credit Card', 'Debit Card', 'Bank Transfer', 'PayPal', 'Venmo', 'Other'] }
+              ],
+              rows: [['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        },
+        {
+          id: 'budget-planner',
+          name: 'Budget Planner',
+          description: 'Plan and track your monthly budget',
+          data: {
+            tables: [{
+              name: 'Budget',
+              columns: ['Category', 'Budgeted ($)', 'Actual ($)', 'Difference ($)', 'Notes'],
+              columnWidths: [160, 120, 120, 120, 180],
+              columnTypes: [
+                { type: 'dropdown', options: ['Housing', 'Transportation', 'Food', 'Utilities', 'Insurance', 'Healthcare', 'Savings', 'Entertainment', 'Personal', 'Debt Payments', 'Other'] },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' },
+                { type: 'text' }
+              ],
+              rows: [['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        }
+      ]
+    },
+    {
+      id: 'productivity',
+      name: 'Productivity',
+      icon: 'Target',
+      templates: [
+        {
+          id: 'task-tracker',
+          name: 'Task Tracker',
+          description: 'Manage tasks with status and priority',
+          data: {
+            tables: [{
+              name: 'Tasks',
+              columns: ['Task', 'Status', 'Priority', 'Due Date', 'Notes'],
+              columnWidths: [200, 120, 100, 120, 180],
+              columnTypes: [
+                { type: 'text' },
+                { type: 'dropdown', options: ['To Do', 'In Progress', 'Review', 'Done', 'Blocked'] },
+                { type: 'dropdown', options: ['High', 'Medium', 'Low'] },
+                { type: 'date' },
+                { type: 'text' }
+              ],
+              rows: [['', '', '', '', ''], ['', '', '', '', ''], ['', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        },
+        {
+          id: 'habit-tracker',
+          name: 'Weekly Habit Tracker',
+          description: 'Track daily habits throughout the week',
+          data: {
+            tables: [{
+              name: 'Habits',
+              columns: ['Habit', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+              columnWidths: [180, 70, 70, 70, 70, 70, 70, 70],
+              columnTypes: [
+                { type: 'text' },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] },
+                { type: 'dropdown', options: ['✓', '✗', '-'] }
+              ],
+              rows: [['Exercise', '', '', '', '', '', '', ''], ['Read', '', '', '', '', '', '', ''], ['Meditate', '', '', '', '', '', '', ''], ['Water Intake', '', '', '', '', '', '', ''], ['Sleep 8hrs', '', '', '', '', '', '', '']]
+            }],
+            activeTableIndex: 0
+          }
+        }
+      ]
+    }
+  ];
+
+  // State for selected spreadsheet template
+  const [selectedSpreadsheetTemplate, setSelectedSpreadsheetTemplate] = useState(null);
+
   const showNotif = (message) => {
     setNotification(message);
     setTimeout(() => setNotification(null), 3000);
@@ -313,18 +472,31 @@ export default function PromptRepository() {
       return;
     }
 
+    // Require spreadsheet template selection
+    if (noteForm.type === 'spreadsheet' && !selectedSpreadsheetTemplate) {
+      showNotif('Please select a spreadsheet template');
+      return;
+    }
+
     // Initialize content based on note type
     let initialContent = noteForm.content;
     if (noteForm.type === 'spreadsheet') {
-      // Initialize with empty spreadsheet data: array of rows, each row is array of cells
-      initialContent = JSON.stringify({
-        columns: ['Column A', 'Column B', 'Column C'],
-        rows: [
-          ['', '', ''],
-          ['', '', ''],
-          ['', '', '']
-        ]
-      });
+      // Use selected template data or default blank spreadsheet
+      if (selectedSpreadsheetTemplate?.data) {
+        initialContent = JSON.stringify(selectedSpreadsheetTemplate.data);
+      } else {
+        // Blank spreadsheet with new structure
+        initialContent = JSON.stringify({
+          tables: [{
+            name: 'Table 1',
+            columns: ['Column A', 'Column B', 'Column C'],
+            columnWidths: [150, 150, 150],
+            columnTypes: [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
+            rows: [['', '', ''], ['', '', ''], ['', '', '']]
+          }],
+          activeTableIndex: 0
+        });
+      }
     }
 
     try {
@@ -344,6 +516,7 @@ export default function PromptRepository() {
       }
 
       setNoteForm({ title: '', content: '', type: 'text', tags: [] });
+      setSelectedSpreadsheetTemplate(null);
       setShowNewNote(false);
       setActiveNote(newNote.id);
       showNotif('Note created');
@@ -3752,7 +3925,7 @@ export default function PromptRepository() {
                 )}
                 Create New Note
               </h2>
-              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }} className="p-1 hover:bg-zinc-700 rounded">
+              <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); setSelectedSpreadsheetTemplate(null); }} className="p-1 hover:bg-zinc-700 rounded">
                 <X size={18} />
               </button>
             </div>
@@ -3764,7 +3937,12 @@ export default function PromptRepository() {
                   {noteTemplates.map(template => (
                     <button
                       key={template.id}
-                      onClick={() => setNoteForm(prev => ({ ...prev, type: template.id }))}
+                      onClick={() => {
+                        setNoteForm(prev => ({ ...prev, type: template.id }));
+                        if (template.id !== 'spreadsheet') {
+                          setSelectedSpreadsheetTemplate(null);
+                        }
+                      }}
                       className={`p-4 rounded-lg border-2 text-left transition-colors ${
                         noteForm.type === template.id
                           ? 'border-blue-500 bg-blue-500/10'
@@ -3813,10 +3991,56 @@ export default function PromptRepository() {
               )}
 
               {noteForm.type === 'spreadsheet' && (
-                <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
-                  <p className="text-sm text-zinc-400">
-                    A spreadsheet will be created with 3 columns and 3 rows. You can add or remove rows after creating the note.
-                  </p>
+                <div className="space-y-4">
+                  <label className="block text-sm text-zinc-400">Choose a Spreadsheet Template</label>
+                  {spreadsheetCategories.map(category => (
+                    <div key={category.id} className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        {category.icon === 'Heart' ? (
+                          <Heart size={18} className="text-red-400" />
+                        ) : category.icon === 'DollarSign' ? (
+                          <DollarSign size={18} className="text-green-400" />
+                        ) : (
+                          <Target size={18} className="text-blue-400" />
+                        )}
+                        <h3 className="font-medium text-sm">{category.name}</h3>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {category.templates.map(template => (
+                          <button
+                            key={template.id}
+                            onClick={() => setSelectedSpreadsheetTemplate(template)}
+                            className={`p-3 rounded-lg border text-left transition-colors ${
+                              selectedSpreadsheetTemplate?.id === template.id
+                                ? 'border-blue-500 bg-blue-500/10'
+                                : 'border-zinc-700 hover:border-zinc-600 bg-zinc-800'
+                            }`}
+                          >
+                            <div className="font-medium text-sm mb-1">{template.name}</div>
+                            <p className="text-xs text-zinc-500">{template.description}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {/* Blank spreadsheet option */}
+                  <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Table size={18} className="text-zinc-400" />
+                      <h3 className="font-medium text-sm">Blank</h3>
+                    </div>
+                    <button
+                      onClick={() => setSelectedSpreadsheetTemplate({ id: 'blank', name: 'Blank Spreadsheet', data: null })}
+                      className={`w-full p-3 rounded-lg border text-left transition-colors ${
+                        selectedSpreadsheetTemplate?.id === 'blank'
+                          ? 'border-blue-500 bg-blue-500/10'
+                          : 'border-zinc-700 hover:border-zinc-600 bg-zinc-800'
+                      }`}
+                    >
+                      <div className="font-medium text-sm mb-1">Blank Spreadsheet</div>
+                      <p className="text-xs text-zinc-500">Start with 3 empty columns and rows</p>
+                    </button>
+                  </div>
                 </div>
               )}
 
