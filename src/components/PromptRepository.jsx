@@ -2499,7 +2499,7 @@ export default function PromptRepository() {
             <h2 className="font-semibold">{prompt ? 'Edit Prompt' : 'New Prompt'}</h2>
             <button onClick={onClose} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
           </div>
-          <div className="p-4 space-y-4 flex-1 modal-scroll">
+          <div className="p-4 space-y-4 flex-1 min-h-0 modal-scroll">
             {/* Prompt Mode Toggle */}
             <div>
               <label className="text-sm text-zinc-400 mb-2 block">Prompt Type</label>
@@ -3324,7 +3324,7 @@ export default function PromptRepository() {
                   <X size={20} />
                 </button>
               </div>
-              <div className="p-4 flex-1 modal-scroll">
+              <div className="p-4 flex-1 min-h-0 modal-scroll">
                 <p className="text-sm text-zinc-400 mb-3">Enter each option on a new line:</p>
                 <textarea
                   value={dropdownOptionsEdit.options.join('\n')}
@@ -4066,7 +4066,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <p className="text-sm text-zinc-400 mb-4">
                 Select a notebook to move "{notes.find(n => n.id === movingNoteId)?.title}" to:
               </p>
@@ -4118,7 +4118,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <label className="block text-sm text-zinc-400 mb-2">Notebook Name</label>
               <input
                 type="text"
@@ -4171,7 +4171,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 space-y-4 flex-1 modal-scroll">
+            <div className="p-4 space-y-4 flex-1 min-h-0 modal-scroll">
               {/* Template Selection */}
               <div>
                 <label className="block text-sm text-zinc-400 mb-2">Template</label>
@@ -4397,7 +4397,7 @@ export default function PromptRepository() {
                 <X size={18} />
               </button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <input
                 id="new-folder-input"
                 autoFocus
@@ -4450,7 +4450,7 @@ export default function PromptRepository() {
               <h2 className="font-semibold">Restore from Backup</h2>
               <button onClick={() => { setShowBackupRestore(false); setBackupPreview(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               {!backupPreview ? (
                 <div>
                   <div className="border-2 border-dashed border-zinc-600 rounded-lg p-8 text-center mb-4">
@@ -4566,7 +4566,7 @@ export default function PromptRepository() {
               <h3 className="font-semibold">Rename Folder</h3>
               <button onClick={() => setRenameFolder(null)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <input
                 autoFocus
                 value={renameFolderValue}
@@ -4594,7 +4594,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => setMovingPrompt(null)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <div className="relative mb-3">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
                 <input
@@ -4657,7 +4657,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <div className="relative mb-3">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
               <input
@@ -4783,7 +4783,7 @@ export default function PromptRepository() {
               <h2 className="font-semibold">Bulk Import Prompts</h2>
               <button onClick={() => { setShowBulkImport(false); setBulkImportData({ prompts: [], folderId: null, tags: [], isFullBackup: false, folders: [] }); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               {bulkImportData.prompts.length === 0 ? (
                 <div>
                   <div className="border-2 border-dashed border-zinc-600 rounded-lg p-8 text-center mb-4">
@@ -5037,7 +5037,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => { setShowMergeDuplicates(false); setDuplicateFolders([]); setExpandedDuplicateGroups(new Set()); setMergeScopeParentId(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               {duplicateFolders.length === 0 ? (
                 <div className="text-center py-8">
                   <GitMerge size={48} className="mx-auto mb-4 text-zinc-600" />
@@ -5166,7 +5166,7 @@ export default function PromptRepository() {
               </div>
               <button onClick={() => { setShowDuplicatePrompts(false); setDuplicatePromptGroups([]); setDuplicatePromptsFolderId(null); }} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               {duplicatePromptGroups.length === 0 ? (
                 <div className="text-center py-8">
                   <Copy size={48} className="mx-auto mb-4 text-zinc-600" />
@@ -5250,7 +5250,7 @@ export default function PromptRepository() {
               <h2 className="font-semibold">Manage Tag Categories</h2>
               <button onClick={() => setShowTagCategoryManager(false)} className="p-1 hover:bg-zinc-700 rounded"><X size={18} /></button>
             </div>
-            <div className="p-4 flex-1 modal-scroll">
+            <div className="p-4 flex-1 min-h-0 modal-scroll">
               <div className="mb-4">
                 <label className="text-sm text-zinc-400 mb-2 block">Add New Category</label>
                 <div className="flex gap-2">

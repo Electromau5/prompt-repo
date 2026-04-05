@@ -38,7 +38,7 @@ body {
 
 /* Modal scrollbar styles - always visible */
 .modal-scroll {
-  overflow: auto !important;
+  overflow: scroll !important;
 }
 
 .modal-scroll::-webkit-scrollbar {
