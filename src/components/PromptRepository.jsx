@@ -4660,16 +4660,16 @@ export default function PromptRepository() {
             <div className="p-4 flex-1 min-h-0 modal-scroll">
               <div className="relative mb-3">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input
-                type="text"
-                placeholder="Search folders..."
-                className="w-full bg-zinc-900 rounded px-3 py-2 pl-9 text-sm"
-                onChange={(e) => setBulkMoveSearch(e.target.value)}
-                value={bulkMoveSearch}
-                autoFocus
-              />
-            </div>
-            <div className="max-h-64 overflow-auto bg-zinc-900 rounded-lg mb-4">
+                <input
+                  type="text"
+                  placeholder="Search folders..."
+                  className="w-full bg-zinc-900 rounded px-3 py-2 pl-9 text-sm"
+                  onChange={(e) => setBulkMoveSearch(e.target.value)}
+                  value={bulkMoveSearch}
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-64 overflow-auto bg-zinc-900 rounded-lg mb-4">
               {/* New root folder button */}
               <button
                 onClick={() => setBulkMoveNewFolder({ show: true, parentId: null, name: '' })}
@@ -4767,9 +4767,10 @@ export default function PromptRepository() {
               }).length === 0 && !bulkMoveNewFolder.show && (
                   <div className="px-3 py-4 text-sm text-zinc-500 text-center">No folders found</div>
                 )}
+              </div>
             </div>
-            <div className="flex justify-end">
-              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); setBulkMoveNewFolder({ show: false, parentId: null, name: '' }); }} className="px-3 py-1.5 text-sm hover:bg-zinc-700 rounded">Cancel</button>
+            <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
+              <button onClick={() => { setShowBulkMove(false); setBulkMoveSearch(''); setBulkMoveNewFolder({ show: false, parentId: null, name: '' }); }} className="px-4 py-2 text-sm hover:bg-zinc-700 rounded">Cancel</button>
             </div>
           </div>
         </div>
