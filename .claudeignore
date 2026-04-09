@@ -1,0 +1,20 @@
+# Dependency folders
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+.next/
+out/
+build/
+
+# Media and Assets (High token cost, low value for code logic)
+*.png
+*.jpg
+*.svg
+*.pdf
+*.mp4
+
+# Logs and Env
+*.log
