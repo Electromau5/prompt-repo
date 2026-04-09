@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -393,6 +393,65 @@ export default function PromptRepository() {
               ],
               rows: [['Exercise', '', '', '', '', '', '', ''], ['Read', '', '', '', '', '', '', ''], ['Meditate', '', '', '', '', '', '', ''], ['Water Intake', '', '', '', '', '', '', ''], ['Sleep 8hrs', '', '', '', '', '', '', '']]
             }],
+            activeTableIndex: 0
+          }
+        }
+      ]
+    },
+    {
+      id: 'business',
+      name: 'Business',
+      icon: 'Briefcase',
+      templates: [
+        {
+          id: 'competitive-analysis',
+          name: 'Competitive Analysis',
+          description: 'Compare competitors across features, pricing, and positioning',
+          data: {
+            tables: [
+              {
+                name: 'Competitors',
+                columns: ['Competitor', 'Website', 'Pricing Model', 'Target Market', 'Strengths', 'Weaknesses', 'Threat Level', 'Notes'],
+                columnWidths: [160, 160, 140, 160, 200, 200, 120, 180],
+                columnTypes: [
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Free', 'Freemium', 'Subscription', 'One-time', 'Usage-based', 'Enterprise'] },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Low', 'Medium', 'High', 'Critical'] },
+                  { type: 'text' }
+                ],
+                rows: [
+                  ['', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', '']
+                ]
+              },
+              {
+                name: 'Feature Matrix',
+                columns: ['Feature', 'Priority', 'Us', 'Competitor A', 'Competitor B', 'Competitor C', 'Notes'],
+                columnWidths: [200, 100, 120, 130, 130, 130, 180],
+                columnTypes: [
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Must Have', 'Nice to Have', 'Differentiator'] },
+                  { type: 'dropdown', options: ['✓ Yes', '✗ No', '~ Partial', 'Planned'] },
+                  { type: 'dropdown', options: ['✓ Yes', '✗ No', '~ Partial', 'N/A'] },
+                  { type: 'dropdown', options: ['✓ Yes', '✗ No', '~ Partial', 'N/A'] },
+                  { type: 'dropdown', options: ['✓ Yes', '✗ No', '~ Partial', 'N/A'] },
+                  { type: 'text' }
+                ],
+                rows: [
+                  ['', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '']
+                ]
+              }
+            ],
             activeTableIndex: 0
           }
         }
@@ -4242,6 +4301,8 @@ export default function PromptRepository() {
                           <Heart size={18} className="text-red-400" />
                         ) : category.icon === 'DollarSign' ? (
                           <DollarSign size={18} className="text-green-400" />
+                        ) : category.icon === 'Briefcase' ? (
+                          <Briefcase size={18} className="text-amber-400" />
                         ) : (
                           <Target size={18} className="text-blue-400" />
                         )}
