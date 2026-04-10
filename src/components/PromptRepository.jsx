@@ -2903,6 +2903,7 @@ export default function PromptRepository() {
                     </span>
                   )}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                    <button onClick={() => { setEditingSectionId(section.id); setEditingTitle(section.title); }} className="p-0.5 hover:text-white" title="Rename section"><Edit2 size={10} /></button>
                     <button onClick={() => addChapter(section.id)} className="p-0.5 hover:text-white" title="Add chapter"><Plus size={11} /></button>
                     {bookData.sections.length > 1 && (
                       <button onClick={() => deleteSection(section.id)} className="p-0.5 hover:text-red-400" title="Delete section"><Trash2 size={11} /></button>
