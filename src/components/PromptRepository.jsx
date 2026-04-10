@@ -2969,43 +2969,56 @@ export default function PromptRepository() {
                   </div>
                 </div>
                 {/* Chapters */}
-                {expandedSections.has(section.id) && section.chapters.map(chapter => (
-                  <div
-                    key={chapter.id}
-                    className={`group flex items-center gap-1 pl-6 pr-2 py-1 cursor-pointer hover:bg-zinc-800 ${bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
-                    onClick={() => selectChapter(section.id, chapter.id)}
-                  >
-                    {editingChapterId === chapter.id ? (
-                      <input
-                        autoFocus
-                        value={editingTitle}
-                        onChange={e => setEditingTitle(e.target.value)}
-                        onBlur={() => renameChapterCommit(section.id, chapter.id)}
-                        onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(section.id, chapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
-                        className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
-                        onClick={e => e.stopPropagation()}
-                      />
-                    ) : (
-                      <span
-                        className="flex-1 text-xs truncate"
-                        onDoubleClick={e => { e.stopPropagation(); setEditingChapterId(chapter.id); setEditingTitle(chapter.title); }}
+                {expandedSections.has(section.id) && (
+                  <>
+                    {section.chapters.map(chapter => (
+                      <div
+                        key={chapter.id}
+                        className={`group flex items-center gap-1 pl-6 pr-2 py-1 cursor-pointer hover:bg-zinc-800 ${bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
+                        onClick={() => selectChapter(section.id, chapter.id)}
                       >
-                        {chapter.title}
-                      </span>
-                    )}
-                    <div className="flex items-center opacity-0 group-hover:opacity-100 flex-shrink-0">
-                      {section.chapters.length > 1 && (
-                        <button
-                          onClick={e => { e.stopPropagation(); deleteChapter(section.id, chapter.id); }}
-                          className="p-0.5 hover:text-red-400"
-                          title="Delete chapter"
-                        >
-                          <Trash2 size={11} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                        {editingChapterId === chapter.id ? (
+                          <input
+                            autoFocus
+                            value={editingTitle}
+                            onChange={e => setEditingTitle(e.target.value)}
+                            onBlur={() => renameChapterCommit(section.id, chapter.id)}
+                            onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(section.id, chapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
+                            className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
+                            onClick={e => e.stopPropagation()}
+                          />
+                        ) : (
+                          <span className="flex-1 text-xs truncate">{chapter.title}</span>
+                        )}
+                        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                          <button
+                            onClick={e => { e.stopPropagation(); setEditingChapterId(chapter.id); setEditingTitle(chapter.title); }}
+                            className="p-0.5 hover:text-white"
+                            title="Rename chapter"
+                          >
+                            <Edit2 size={10} />
+                          </button>
+                          {section.chapters.length > 1 && (
+                            <button
+                              onClick={e => { e.stopPropagation(); deleteChapter(section.id, chapter.id); }}
+                              className="p-0.5 hover:text-red-400"
+                              title="Delete chapter"
+                            >
+                              <Trash2 size={10} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {/* Always-visible Add Chapter button */}
+                    <button
+                      onClick={() => addChapter(section.id)}
+                      className="flex items-center gap-1 pl-7 pr-2 py-1 w-full text-left text-xs text-zinc-600 hover:text-zinc-400 hover:bg-zinc-800/50"
+                    >
+                      <Plus size={10} /> Add chapter
+                    </button>
+                  </>
+                )}
               </div>
             ))}
           </div>
@@ -3019,7 +3032,27 @@ export default function PromptRepository() {
                 <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
                 <span className="text-xs text-zinc-500">{activeSection?.title}</span>
                 <ChevronRight size={12} className="text-zinc-600" />
-                <span className="text-sm font-medium text-zinc-200">{activeChapter.title}</span>
+                {editingChapterId === activeChapter.id ? (
+                  <input
+                    autoFocus
+                    value={editingTitle}
+                    onChange={e => setEditingTitle(e.target.value)}
+                    onBlur={() => renameChapterCommit(activeSection?.id, activeChapter.id)}
+                    onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(activeSection?.id, activeChapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
+                    className="flex-1 bg-zinc-800 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                  />
+                ) : (
+                  <span className="text-sm font-medium text-zinc-200 flex-1">{activeChapter.title}</span>
+                )}
+                {editingChapterId !== activeChapter.id && (
+                  <button
+                    onClick={() => { setEditingChapterId(activeChapter.id); setEditingTitle(activeChapter.title); }}
+                    className="p-1 hover:bg-zinc-700 rounded text-zinc-500 hover:text-white flex-shrink-0"
+                    title="Rename chapter"
+                  >
+                    <Edit2 size={13} />
+                  </button>
+                )}
               </div>
               <textarea
                 className="flex-1 bg-transparent p-4 text-sm text-zinc-200 resize-none focus:outline-none leading-relaxed placeholder-zinc-600"
