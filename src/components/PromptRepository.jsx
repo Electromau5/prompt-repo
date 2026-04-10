@@ -241,7 +241,8 @@ export default function PromptRepository() {
   const noteTemplates = [
     { id: 'text', name: 'Text Note', icon: 'FileText', description: 'Simple text note for writing' },
     { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table', description: 'Table with rows and columns' },
-    { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' }
+    { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' },
+    { id: 'book', name: 'Book', icon: 'BookOpen', description: 'Organize content into sections and chapters' }
   ];
 
   // Spreadsheet template categories and templates
@@ -480,6 +481,23 @@ export default function PromptRepository() {
 
     // Initialize content based on note type
     let initialContent = noteForm.content;
+    if (noteForm.type === 'book') {
+      const sectionId = generateId();
+      const chapterId = generateId();
+      initialContent = JSON.stringify({
+        sections: [{
+          id: sectionId,
+          title: 'Section 1',
+          chapters: [{
+            id: chapterId,
+            title: 'Chapter 1',
+            content: ''
+          }]
+        }],
+        activeSectionId: sectionId,
+        activeChapterId: chapterId
+      });
+    }
     if (noteForm.type === 'spreadsheet') {
       // Use selected template data or default blank spreadsheet
       if (selectedSpreadsheetTemplate?.data) {
@@ -2724,6 +2742,243 @@ export default function PromptRepository() {
   const isPromptsNotebook = currentNotebook?.type === 'prompts';
 
   // Spreadsheet Editor Component
+  const BookEditor = ({ note, onUpdate }) => {
+    const parseBookData = (content) => {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.sections && Array.isArray(parsed.sections)) return parsed;
+      } catch {}
+      const sectionId = generateId();
+      const chapterId = generateId();
+      return {
+        sections: [{ id: sectionId, title: 'Section 1', chapters: [{ id: chapterId, title: 'Chapter 1', content: '' }] }],
+        activeSectionId: sectionId,
+        activeChapterId: chapterId
+      };
+    };
+
+    const [bookData, setBookData] = useState(() => parseBookData(note.content));
+    const [expandedSections, setExpandedSections] = useState(() => {
+      const data = parseBookData(note.content);
+      return new Set(data.sections.map(s => s.id));
+    });
+    const [editingSectionId, setEditingSectionId] = useState(null);
+    const [editingChapterId, setEditingChapterId] = useState(null);
+    const [editingTitle, setEditingTitle] = useState('');
+
+    const saveData = (newData) => {
+      setBookData(newData);
+      onUpdate(JSON.stringify(newData));
+    };
+
+    const activeSection = bookData.sections.find(s => s.id === bookData.activeSectionId);
+    const activeChapter = activeSection?.chapters.find(c => c.id === bookData.activeChapterId);
+
+    const selectChapter = (sectionId, chapterId) => {
+      saveData({ ...bookData, activeSectionId: sectionId, activeChapterId: chapterId });
+    };
+
+    const addSection = () => {
+      const newId = generateId();
+      const newChapterId = generateId();
+      const newSection = { id: newId, title: `Section ${bookData.sections.length + 1}`, chapters: [{ id: newChapterId, title: 'Chapter 1', content: '' }] };
+      const newData = { ...bookData, sections: [...bookData.sections, newSection], activeSectionId: newId, activeChapterId: newChapterId };
+      setExpandedSections(prev => new Set([...prev, newId]));
+      saveData(newData);
+    };
+
+    const addChapter = (sectionId) => {
+      const section = bookData.sections.find(s => s.id === sectionId);
+      const newChapterId = generateId();
+      const newChapter = { id: newChapterId, title: `Chapter ${section.chapters.length + 1}`, content: '' };
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === sectionId ? { ...s, chapters: [...s.chapters, newChapter] } : s),
+        activeSectionId: sectionId,
+        activeChapterId: newChapterId
+      };
+      saveData(newData);
+    };
+
+    const deleteSection = (sectionId) => {
+      if (bookData.sections.length === 1) return;
+      const remaining = bookData.sections.filter(s => s.id !== sectionId);
+      const newActive = bookData.activeSectionId === sectionId ? remaining[0] : bookData.sections.find(s => s.id === bookData.activeSectionId);
+      const newActiveSection = remaining.find(s => s.id === newActive?.id) || remaining[0];
+      const newData = {
+        ...bookData,
+        sections: remaining,
+        activeSectionId: newActiveSection.id,
+        activeChapterId: newActiveSection.chapters[0]?.id || null
+      };
+      saveData(newData);
+    };
+
+    const deleteChapter = (sectionId, chapterId) => {
+      const section = bookData.sections.find(s => s.id === sectionId);
+      if (section.chapters.length === 1) return;
+      const remaining = section.chapters.filter(c => c.id !== chapterId);
+      const newActiveChapter = bookData.activeChapterId === chapterId ? remaining[0] : section.chapters.find(c => c.id === bookData.activeChapterId);
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === sectionId ? { ...s, chapters: remaining } : s),
+        activeSectionId: sectionId,
+        activeChapterId: (newActiveChapter && remaining.find(c => c.id === newActiveChapter.id)) ? newActiveChapter.id : remaining[0].id
+      };
+      saveData(newData);
+    };
+
+    const updateChapterContent = (content) => {
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === bookData.activeSectionId
+          ? { ...s, chapters: s.chapters.map(c => c.id === bookData.activeChapterId ? { ...c, content } : c) }
+          : s
+        )
+      };
+      saveData(newData);
+    };
+
+    const renameSectionCommit = (sectionId) => {
+      if (!editingTitle.trim()) { setEditingSectionId(null); return; }
+      const newData = { ...bookData, sections: bookData.sections.map(s => s.id === sectionId ? { ...s, title: editingTitle.trim() } : s) };
+      saveData(newData);
+      setEditingSectionId(null);
+    };
+
+    const renameChapterCommit = (sectionId, chapterId) => {
+      if (!editingTitle.trim()) { setEditingChapterId(null); return; }
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === sectionId
+          ? { ...s, chapters: s.chapters.map(c => c.id === chapterId ? { ...c, title: editingTitle.trim() } : c) }
+          : s
+        )
+      };
+      saveData(newData);
+      setEditingChapterId(null);
+    };
+
+    return (
+      <div className="flex h-full gap-0 min-h-0">
+        {/* Left sidebar: sections & chapters */}
+        <div className="w-56 flex-shrink-0 border-r border-zinc-800 flex flex-col min-h-0 overflow-y-auto">
+          <div className="p-2 border-b border-zinc-800 flex items-center justify-between">
+            <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Contents</span>
+            <button
+              onClick={addSection}
+              className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+              title="Add section"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-1">
+            {bookData.sections.map(section => (
+              <div key={section.id}>
+                {/* Section header */}
+                <div className={`group flex items-center gap-1 px-2 py-1.5 cursor-pointer hover:bg-zinc-800 ${bookData.activeSectionId === section.id ? 'text-white' : 'text-zinc-400'}`}>
+                  <button
+                    onClick={() => setExpandedSections(prev => { const n = new Set(prev); n.has(section.id) ? n.delete(section.id) : n.add(section.id); return n; })}
+                    className="flex-shrink-0"
+                  >
+                    {expandedSections.has(section.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  </button>
+                  {editingSectionId === section.id ? (
+                    <input
+                      autoFocus
+                      value={editingTitle}
+                      onChange={e => setEditingTitle(e.target.value)}
+                      onBlur={() => renameSectionCommit(section.id)}
+                      onKeyDown={e => { if (e.key === 'Enter') renameSectionCommit(section.id); if (e.key === 'Escape') setEditingSectionId(null); }}
+                      className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
+                      onClick={e => e.stopPropagation()}
+                    />
+                  ) : (
+                    <span
+                      className="flex-1 text-xs font-semibold truncate"
+                      onDoubleClick={() => { setEditingSectionId(section.id); setEditingTitle(section.title); }}
+                    >
+                      {section.title}
+                    </span>
+                  )}
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                    <button onClick={() => addChapter(section.id)} className="p-0.5 hover:text-white" title="Add chapter"><Plus size={11} /></button>
+                    {bookData.sections.length > 1 && (
+                      <button onClick={() => deleteSection(section.id)} className="p-0.5 hover:text-red-400" title="Delete section"><Trash2 size={11} /></button>
+                    )}
+                  </div>
+                </div>
+                {/* Chapters */}
+                {expandedSections.has(section.id) && section.chapters.map(chapter => (
+                  <div
+                    key={chapter.id}
+                    className={`group flex items-center gap-1 pl-6 pr-2 py-1 cursor-pointer hover:bg-zinc-800 ${bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
+                    onClick={() => selectChapter(section.id, chapter.id)}
+                  >
+                    {editingChapterId === chapter.id ? (
+                      <input
+                        autoFocus
+                        value={editingTitle}
+                        onChange={e => setEditingTitle(e.target.value)}
+                        onBlur={() => renameChapterCommit(section.id, chapter.id)}
+                        onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(section.id, chapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
+                        className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
+                        onClick={e => e.stopPropagation()}
+                      />
+                    ) : (
+                      <span
+                        className="flex-1 text-xs truncate"
+                        onDoubleClick={e => { e.stopPropagation(); setEditingChapterId(chapter.id); setEditingTitle(chapter.title); }}
+                      >
+                        {chapter.title}
+                      </span>
+                    )}
+                    <div className="flex items-center opacity-0 group-hover:opacity-100 flex-shrink-0">
+                      {section.chapters.length > 1 && (
+                        <button
+                          onClick={e => { e.stopPropagation(); deleteChapter(section.id, chapter.id); }}
+                          className="p-0.5 hover:text-red-400"
+                          title="Delete chapter"
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right panel: chapter editor */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {activeChapter ? (
+            <>
+              <div className="px-4 py-2 border-b border-zinc-800 flex items-center gap-2">
+                <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
+                <span className="text-xs text-zinc-500">{activeSection?.title}</span>
+                <ChevronRight size={12} className="text-zinc-600" />
+                <span className="text-sm font-medium text-zinc-200">{activeChapter.title}</span>
+              </div>
+              <textarea
+                className="flex-1 bg-transparent p-4 text-sm text-zinc-200 resize-none focus:outline-none leading-relaxed placeholder-zinc-600"
+                placeholder="Start writing this chapter..."
+                value={activeChapter.content}
+                onChange={e => updateChapterContent(e.target.value)}
+              />
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-zinc-600">
+              <p className="text-sm">Select a chapter to start writing</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
     // Default table structure
     const createDefaultTable = (name = 'Table 1') => ({
@@ -3437,6 +3692,8 @@ export default function PromptRepository() {
                       <GripVertical size={12} className="text-zinc-600 flex-shrink-0" />
                       {note.type === 'spreadsheet' ? (
                         <Table size={14} className="text-green-500 flex-shrink-0" />
+                      ) : note.type === 'book' ? (
+                        <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
                       ) : note.type === 'prompt' || note.template === 'prompt' ? (
                         <MessageSquare size={14} className="text-purple-500 flex-shrink-0" />
                       ) : (
@@ -3447,6 +3704,8 @@ export default function PromptRepository() {
                     <div className="text-xs text-zinc-500 mt-1 line-clamp-2 ml-8">
                       {note.type === 'spreadsheet' ? (
                         <span className="text-green-500/70">Spreadsheet</span>
+                      ) : note.type === 'book' ? (
+                        <span className="text-amber-400/70">Book</span>
                       ) : (
                         note.content || 'No content'
                       )}
@@ -3477,6 +3736,8 @@ export default function PromptRepository() {
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   {currentNote.type === 'spreadsheet' ? (
                     <Table size={20} className="text-green-500 flex-shrink-0" />
+                  ) : currentNote.type === 'book' ? (
+                    <BookOpen size={20} className="text-amber-400 flex-shrink-0" />
                   ) : (
                     <FileText size={20} className="text-blue-500 flex-shrink-0" />
                   )}
@@ -3494,7 +3755,7 @@ export default function PromptRepository() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
-                  {currentNote.type !== 'spreadsheet' && (
+                  {currentNote.type !== 'spreadsheet' && currentNote.type !== 'book' && (
                     <button
                       onClick={() => copyNoteContent(currentNote.content, currentNote.id)}
                       className={`p-2 rounded transition-colors ${
@@ -3526,7 +3787,7 @@ export default function PromptRepository() {
                     </>
                   ) : (
                     <>
-                      {currentNote.type !== 'spreadsheet' && (
+                      {currentNote.type !== 'spreadsheet' && currentNote.type !== 'book' && (
                         <button
                           onClick={() => {
                             setEditingNoteId(currentNote.id);
@@ -3565,11 +3826,19 @@ export default function PromptRepository() {
               </div>
 
               {/* Note Content */}
-              <div className="flex-1 p-4 overflow-hidden flex flex-col min-h-0">
+              <div className={`flex-1 overflow-hidden flex flex-col min-h-0 ${currentNote.type === 'book' ? '' : 'p-4'}`}>
                 {currentNote.type === 'spreadsheet' ? (
                   <SpreadsheetEditor
                     note={currentNote}
                     isEditing={true}
+                    onUpdate={(newContent) => {
+                      updateNote(currentNote.id, { content: newContent });
+                    }}
+                  />
+                ) : currentNote.type === 'book' ? (
+                  <BookEditor
+                    key={currentNote.id}
+                    note={currentNote}
                     onUpdate={(newContent) => {
                       updateNote(currentNote.id, { content: newContent });
                     }}
@@ -3653,6 +3922,7 @@ export default function PromptRepository() {
               {/* Note Footer */}
               <div className="px-4 py-2 border-t border-zinc-800 text-xs text-zinc-500">
                 {currentNote.type === 'spreadsheet' && <span className="text-green-500/70 mr-2">Spreadsheet</span>}
+                {currentNote.type === 'book' && <span className="text-amber-400/70 mr-2">Book</span>}
                 Last updated: {new Date(currentNote.updatedAt).toLocaleString()}
               </div>
             </>
@@ -4196,6 +4466,8 @@ export default function PromptRepository() {
                           <Table size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
                         ) : template.icon === 'MessageSquare' ? (
                           <MessageSquare size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
+                        ) : template.icon === 'BookOpen' ? (
+                          <BookOpen size={20} className={noteForm.type === template.id ? 'text-amber-400' : 'text-zinc-400'} />
                         ) : (
                           <FileText size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
                         )}
