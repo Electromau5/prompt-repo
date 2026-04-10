@@ -544,7 +544,7 @@ export default function PromptRepository() {
     }
   };
 
-  const updateNote = async (noteId, updates) => {
+  const updateNote = async (noteId, updates, { silent = false } = {}) => {
     try {
       const note = notes.find(n => n.id === noteId);
       const updatedNote = await api.updateNote(
@@ -564,7 +564,7 @@ export default function PromptRepository() {
           setData(d => ({ ...d, tags: [...d.tags, ...newTags] }));
         }
       }
-      showNotif('Note updated');
+      if (!silent) showNotif('Note updated');
     } catch (e) {
       console.error('Error updating note:', e);
       showNotif('Failed to update note');
@@ -2916,18 +2916,22 @@ export default function PromptRepository() {
                         onClick={() => selectChapter(section.id, chapter.id)}
                       >
                         {renamingChapter?.id === chapter.id ? (
-                          <input
-                            autoFocus
-                            value={renamingChapter.title}
-                            onChange={e => setRenamingChapter(prev => ({ ...prev, title: e.target.value }))}
-                            onBlur={commitChapterRename}
-                            onKeyDown={e => { if (e.key === 'Enter') commitChapterRename(); if (e.key === 'Escape') setRenamingChapter(null); }}
-                            className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
-                            onClick={e => e.stopPropagation()}
-                          />
+                          <>
+                            <input
+                              autoFocus
+                              value={renamingChapter.title}
+                              onChange={e => setRenamingChapter(prev => ({ ...prev, title: e.target.value }))}
+                              onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') commitChapterRename(); if (e.key === 'Escape') setRenamingChapter(null); }}
+                              className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
+                              onClick={e => e.stopPropagation()}
+                            />
+                            <button onMouseDown={e => { e.preventDefault(); e.stopPropagation(); commitChapterRename(); }} className="p-0.5 text-green-400 hover:text-green-300 flex-shrink-0" title="Save"><Check size={10} /></button>
+                            <button onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRenamingChapter(null); }} className="p-0.5 text-zinc-500 hover:text-white flex-shrink-0" title="Cancel"><X size={10} /></button>
+                          </>
                         ) : (
                           <span className="flex-1 text-xs truncate">{chapter.title}</span>
                         )}
+                        {!renamingChapter || renamingChapter.id !== chapter.id ? (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
                           <button
                             onClick={e => { e.stopPropagation(); setRenamingChapter({ sectionId: section.id, id: chapter.id, title: chapter.title }); }}
@@ -2946,6 +2950,7 @@ export default function PromptRepository() {
                             </button>
                           )}
                         </div>
+                        ) : null}
                       </div>
                     ))}
                     {/* Always-visible Add Chapter button */}
@@ -2968,29 +2973,26 @@ export default function PromptRepository() {
             <>
               <div className="px-4 py-2 border-b border-zinc-800 flex items-center gap-2">
                 <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
-                <span className="text-xs text-zinc-500">{activeSection?.title}</span>
-                <ChevronRight size={12} className="text-zinc-600" />
-                {renamingChapter?.id === activeChapter.id ? (
-                  <input
-                    autoFocus
-                    value={renamingChapter.title}
-                    onChange={e => setRenamingChapter(prev => ({ ...prev, title: e.target.value }))}
-                    onBlur={commitChapterRename}
-                    onKeyDown={e => { if (e.key === 'Enter') commitChapterRename(); if (e.key === 'Escape') setRenamingChapter(null); }}
-                    className="flex-1 bg-zinc-800 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
-                  />
-                ) : (
-                  <span className="text-sm font-medium text-zinc-200 flex-1">{activeChapter.title}</span>
-                )}
-                {renamingChapter?.id !== activeChapter.id && (
-                  <button
-                    onClick={() => setRenamingChapter({ sectionId: activeSection?.id, id: activeChapter.id, title: activeChapter.title })}
-                    className="p-1 hover:bg-zinc-700 rounded text-zinc-500 hover:text-white flex-shrink-0"
-                    title="Rename chapter"
-                  >
-                    <Edit2 size={13} />
-                  </button>
-                )}
+                <span className="text-xs text-zinc-500 flex-shrink-0">{activeSection?.title}</span>
+                <ChevronRight size={12} className="text-zinc-600 flex-shrink-0" />
+                <input
+                  key={activeChapter.id}
+                  defaultValue={activeChapter.title}
+                  onBlur={e => {
+                    const val = e.target.value.trim();
+                    if (val && val !== activeChapter.title) {
+                      commitChapterRename();
+                    }
+                  }}
+                  onFocus={e => setRenamingChapter({ sectionId: activeSection?.id, id: activeChapter.id, title: e.target.value })}
+                  onChange={e => setRenamingChapter(prev => prev ? { ...prev, title: e.target.value } : { sectionId: activeSection?.id, id: activeChapter.id, title: e.target.value })}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.target.blur(); }
+                    if (e.key === 'Escape') { e.target.value = activeChapter.title; e.target.blur(); }
+                  }}
+                  className="flex-1 min-w-0 bg-transparent text-sm font-medium text-zinc-200 focus:outline-none focus:bg-zinc-800 focus:rounded focus:px-2 focus:ring-1 focus:ring-amber-400 transition-all"
+                  title="Click to rename chapter"
+                />
               </div>
               <textarea
                 className="flex-1 bg-transparent p-4 text-sm text-zinc-200 resize-none focus:outline-none leading-relaxed placeholder-zinc-600"
@@ -3870,7 +3872,7 @@ export default function PromptRepository() {
                     key={currentNote.id}
                     note={currentNote}
                     onUpdate={(newContent) => {
-                      updateNote(currentNote.id, { content: newContent });
+                      updateNote(currentNote.id, { content: newContent }, { silent: true });
                     }}
                   />
                 ) : editingNoteId === currentNote.id ? (
