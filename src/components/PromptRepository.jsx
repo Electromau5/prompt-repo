@@ -2821,9 +2821,8 @@ export default function PromptRepository() {
       const data = parseBookData(note.content);
       return new Set(data.sections.map(s => s.id));
     });
-    const [editingSectionId, setEditingSectionId] = useState(null);
-    const [editingChapterId, setEditingChapterId] = useState(null);
-    const [editingTitle, setEditingTitle] = useState('');
+    const [renamingSection, setRenamingSection] = useState(null); // { id, title }
+    const [renamingChapter, setRenamingChapter] = useState(null); // { sectionId, id, title }
 
     const saveData = (newData) => {
       setBookData(newData);
@@ -2898,24 +2897,26 @@ export default function PromptRepository() {
       saveData(newData);
     };
 
-    const renameSectionCommit = (sectionId) => {
-      if (!editingTitle.trim()) { setEditingSectionId(null); return; }
-      const newData = { ...bookData, sections: bookData.sections.map(s => s.id === sectionId ? { ...s, title: editingTitle.trim() } : s) };
-      saveData(newData);
-      setEditingSectionId(null);
+    const commitSectionRename = () => {
+      if (!renamingSection) return;
+      if (renamingSection.title.trim()) {
+        saveData({ ...bookData, sections: bookData.sections.map(s => s.id === renamingSection.id ? { ...s, title: renamingSection.title.trim() } : s) });
+      }
+      setRenamingSection(null);
     };
 
-    const renameChapterCommit = (sectionId, chapterId) => {
-      if (!editingTitle.trim()) { setEditingChapterId(null); return; }
-      const newData = {
-        ...bookData,
-        sections: bookData.sections.map(s => s.id === sectionId
-          ? { ...s, chapters: s.chapters.map(c => c.id === chapterId ? { ...c, title: editingTitle.trim() } : c) }
-          : s
-        )
-      };
-      saveData(newData);
-      setEditingChapterId(null);
+    const commitChapterRename = () => {
+      if (!renamingChapter) return;
+      if (renamingChapter.title.trim()) {
+        saveData({
+          ...bookData,
+          sections: bookData.sections.map(s => s.id === renamingChapter.sectionId
+            ? { ...s, chapters: s.chapters.map(c => c.id === renamingChapter.id ? { ...c, title: renamingChapter.title.trim() } : c) }
+            : s
+          )
+        });
+      }
+      setRenamingChapter(null);
     };
 
     return (
@@ -2943,26 +2944,21 @@ export default function PromptRepository() {
                   >
                     {expandedSections.has(section.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
                   </button>
-                  {editingSectionId === section.id ? (
+                  {renamingSection?.id === section.id ? (
                     <input
                       autoFocus
-                      value={editingTitle}
-                      onChange={e => setEditingTitle(e.target.value)}
-                      onBlur={() => renameSectionCommit(section.id)}
-                      onKeyDown={e => { if (e.key === 'Enter') renameSectionCommit(section.id); if (e.key === 'Escape') setEditingSectionId(null); }}
+                      value={renamingSection.title}
+                      onChange={e => setRenamingSection(prev => ({ ...prev, title: e.target.value }))}
+                      onBlur={commitSectionRename}
+                      onKeyDown={e => { if (e.key === 'Enter') commitSectionRename(); if (e.key === 'Escape') setRenamingSection(null); }}
                       className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
                       onClick={e => e.stopPropagation()}
                     />
                   ) : (
-                    <span
-                      className="flex-1 text-xs font-semibold truncate"
-                      onDoubleClick={() => { setEditingSectionId(section.id); setEditingTitle(section.title); }}
-                    >
-                      {section.title}
-                    </span>
+                    <span className="flex-1 text-xs font-semibold truncate">{section.title}</span>
                   )}
                   <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
-                    <button onClick={() => { setEditingSectionId(section.id); setEditingTitle(section.title); }} className="p-0.5 hover:text-white" title="Rename section"><Edit2 size={10} /></button>
+                    <button onClick={e => { e.stopPropagation(); setRenamingSection({ id: section.id, title: section.title }); }} className="p-0.5 hover:text-white" title="Rename section"><Edit2 size={10} /></button>
                     <button onClick={() => addChapter(section.id)} className="p-0.5 hover:text-white" title="Add chapter"><Plus size={11} /></button>
                     {bookData.sections.length > 1 && (
                       <button onClick={() => deleteSection(section.id)} className="p-0.5 hover:text-red-400" title="Delete section"><Trash2 size={11} /></button>
@@ -2978,13 +2974,13 @@ export default function PromptRepository() {
                         className={`group flex items-center gap-1 pl-6 pr-2 py-1 cursor-pointer hover:bg-zinc-800 ${bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
                         onClick={() => selectChapter(section.id, chapter.id)}
                       >
-                        {editingChapterId === chapter.id ? (
+                        {renamingChapter?.id === chapter.id ? (
                           <input
                             autoFocus
-                            value={editingTitle}
-                            onChange={e => setEditingTitle(e.target.value)}
-                            onBlur={() => renameChapterCommit(section.id, chapter.id)}
-                            onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(section.id, chapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
+                            value={renamingChapter.title}
+                            onChange={e => setRenamingChapter(prev => ({ ...prev, title: e.target.value }))}
+                            onBlur={commitChapterRename}
+                            onKeyDown={e => { if (e.key === 'Enter') commitChapterRename(); if (e.key === 'Escape') setRenamingChapter(null); }}
                             className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
                             onClick={e => e.stopPropagation()}
                           />
@@ -2993,7 +2989,7 @@ export default function PromptRepository() {
                         )}
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
                           <button
-                            onClick={e => { e.stopPropagation(); setEditingChapterId(chapter.id); setEditingTitle(chapter.title); }}
+                            onClick={e => { e.stopPropagation(); setRenamingChapter({ sectionId: section.id, id: chapter.id, title: chapter.title }); }}
                             className="p-0.5 hover:text-white"
                             title="Rename chapter"
                           >
@@ -3033,21 +3029,21 @@ export default function PromptRepository() {
                 <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
                 <span className="text-xs text-zinc-500">{activeSection?.title}</span>
                 <ChevronRight size={12} className="text-zinc-600" />
-                {editingChapterId === activeChapter.id ? (
+                {renamingChapter?.id === activeChapter.id ? (
                   <input
                     autoFocus
-                    value={editingTitle}
-                    onChange={e => setEditingTitle(e.target.value)}
-                    onBlur={() => renameChapterCommit(activeSection?.id, activeChapter.id)}
-                    onKeyDown={e => { if (e.key === 'Enter') renameChapterCommit(activeSection?.id, activeChapter.id); if (e.key === 'Escape') setEditingChapterId(null); }}
+                    value={renamingChapter.title}
+                    onChange={e => setRenamingChapter(prev => ({ ...prev, title: e.target.value }))}
+                    onBlur={commitChapterRename}
+                    onKeyDown={e => { if (e.key === 'Enter') commitChapterRename(); if (e.key === 'Escape') setRenamingChapter(null); }}
                     className="flex-1 bg-zinc-800 rounded px-2 py-0.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-amber-400"
                   />
                 ) : (
                   <span className="text-sm font-medium text-zinc-200 flex-1">{activeChapter.title}</span>
                 )}
-                {editingChapterId !== activeChapter.id && (
+                {renamingChapter?.id !== activeChapter.id && (
                   <button
-                    onClick={() => { setEditingChapterId(activeChapter.id); setEditingTitle(activeChapter.title); }}
+                    onClick={() => setRenamingChapter({ sectionId: activeSection?.id, id: activeChapter.id, title: activeChapter.title })}
                     className="p-1 hover:bg-zinc-700 rounded text-zinc-500 hover:text-white flex-shrink-0"
                     title="Rename chapter"
                   >
