@@ -1,0 +1,11 @@
+# Claude Code Efficiency Rules
+
+## Token Conservation
+- **Do not read files unless necessary:** Always check the file structure first. Do not `cat` large files unless specifically requested.
+- **Ignore bulky directories:** Never index or read from `node_modules`, `dist`, `.next`, or `build` folders.
+- **Summarize logs:** If a command fails, only read the last 20 lines of the log, not the entire output.
+- **Be concise:** When explaining changes, provide a 1-sentence summary instead of a detailed breakdown unless I ask "Why?".
+
+## Context Management
+- **File limits:** If a file is over 500 lines, ask for permission before reading the whole thing.
+- **No recursive searches:** Avoid running `grep` or `find` on the entire root directory; target specific folders like `/src` or `/components`.
