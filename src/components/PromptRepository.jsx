@@ -222,6 +222,7 @@ export default function PromptRepository() {
   const [activeNotebook, setActiveNotebook] = useState(null);
   const [showNewNotebook, setShowNewNotebook] = useState(false);
   const [newNotebookName, setNewNotebookName] = useState('');
+  const [newNotebookType, setNewNotebookType] = useState('notebook');
 
   // Notes state (for generic notebooks)
   const [notes, setNotes] = useState([]);
@@ -412,9 +413,10 @@ export default function PromptRepository() {
   const createNotebook = async () => {
     if (!newNotebookName.trim()) return;
     try {
-      const newNotebook = await api.createNotebook(newNotebookName.trim(), 'notebook');
+      const newNotebook = await api.createNotebook(newNotebookName.trim(), newNotebookType);
       setNotebooks(prev => [...prev, newNotebook]);
       setNewNotebookName('');
+      setNewNotebookType('notebook');
       setShowNewNotebook(false);
       setActiveNotebook(newNotebook.id);
       showNotif(`Created notebook "${newNotebook.name}"`);
@@ -2722,6 +2724,7 @@ export default function PromptRepository() {
   // Get current notebook
   const currentNotebook = notebooks.find(n => n.id === activeNotebook);
   const isPromptsNotebook = currentNotebook?.type === 'prompts';
+  const isBookNotebook = currentNotebook?.type === 'book';
 
   // Spreadsheet Editor Component
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
@@ -3372,12 +3375,14 @@ export default function PromptRepository() {
           <div className="p-2 border-b border-zinc-800 flex items-center justify-between">
             {notesPanelOpen ? (
               <>
-                <span className="text-sm font-medium text-zinc-400 px-2">Notes ({notebookNotes.length})</span>
+                <span className="text-sm font-medium text-zinc-400 px-2">
+                  {isBookNotebook ? `Chapters (${notebookNotes.length})` : `Notes (${notebookNotes.length})`}
+                </span>
                 <div className="flex items-center gap-1">
                   <button
                     onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); }}
                     className="p-1.5 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
-                    title="New note"
+                    title={isBookNotebook ? "New chapter" : "New note"}
                   >
                     <Plus size={16} />
                   </button>
@@ -3403,13 +3408,17 @@ export default function PromptRepository() {
           {notesPanelOpen && <div className="flex-1 overflow-auto">
             {notebookNotes.length === 0 ? (
               <div className="p-4 text-center text-zinc-500">
-                <FileText size={32} className="mx-auto mb-2 opacity-50" />
-                <p className="text-sm">No notes yet</p>
+                {isBookNotebook ? (
+                  <BookOpen size={32} className="mx-auto mb-2 opacity-50 text-amber-500/50" />
+                ) : (
+                  <FileText size={32} className="mx-auto mb-2 opacity-50" />
+                )}
+                <p className="text-sm">{isBookNotebook ? 'No chapters yet' : 'No notes yet'}</p>
                 <button
                   onClick={() => { setShowNewNote(true); setNoteForm({ title: '', content: '' }); }}
-                  className="mt-2 text-xs text-blue-400 hover:text-blue-300"
+                  className={`mt-2 text-xs ${isBookNotebook ? 'text-amber-400 hover:text-amber-300' : 'text-blue-400 hover:text-blue-300'}`}
                 >
-                  Create your first note
+                  {isBookNotebook ? 'Add your first chapter' : 'Create your first note'}
                 </button>
               </div>
             ) : (
@@ -3425,17 +3434,25 @@ export default function PromptRepository() {
                     onClick={() => setActiveNote(note.id)}
                     className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors cursor-grab active:cursor-grabbing ${
                       activeNote === note.id
-                        ? 'bg-blue-600/20 border-l-2 border-l-blue-500'
+                        ? isBookNotebook
+                          ? 'bg-amber-600/20 border-l-2 border-l-amber-500'
+                          : 'bg-blue-600/20 border-l-2 border-l-blue-500'
                         : draggingNote?.id === note.id
                           ? 'opacity-50'
                           : dragOverNoteIndex === index && draggingNote
-                            ? 'border-t-2 border-t-blue-500'
+                            ? isBookNotebook
+                              ? 'border-t-2 border-t-amber-500'
+                              : 'border-t-2 border-t-blue-500'
                             : 'hover:bg-zinc-800'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <GripVertical size={12} className="text-zinc-600 flex-shrink-0" />
-                      {note.type === 'spreadsheet' ? (
+                      <GripVertical size={12} className="text-zinc-600 flex-shrink-0 cursor-grab" />
+                      {isBookNotebook ? (
+                        <span className="flex-shrink-0 w-6 h-6 rounded bg-amber-500/20 text-amber-400 text-xs font-bold flex items-center justify-center">
+                          {index + 1}
+                        </span>
+                      ) : note.type === 'spreadsheet' ? (
                         <Table size={14} className="text-green-500 flex-shrink-0" />
                       ) : note.type === 'prompt' || note.template === 'prompt' ? (
                         <MessageSquare size={14} className="text-purple-500 flex-shrink-0" />
@@ -3444,9 +3461,11 @@ export default function PromptRepository() {
                       )}
                       <span className="font-medium text-sm truncate">{note.title}</span>
                     </div>
-                    <div className="text-xs text-zinc-500 mt-1 line-clamp-2 ml-8">
+                    <div className={`text-xs text-zinc-500 mt-1 line-clamp-2 ${isBookNotebook ? 'ml-10' : 'ml-8'}`}>
                       {note.type === 'spreadsheet' ? (
                         <span className="text-green-500/70">Spreadsheet</span>
+                      ) : isBookNotebook ? (
+                        <span className="text-amber-500/50">Chapter {index + 1}</span>
                       ) : (
                         note.content || 'No content'
                       )}
@@ -3459,7 +3478,11 @@ export default function PromptRepository() {
                     onDragOver={(e) => handleNoteDragOver(e, notebookNotes.length)}
                     onDrop={(e) => handleNoteListDrop(e, notebookNotes.length)}
                     className={`h-8 mx-2 rounded transition-colors ${
-                      dragOverNoteIndex === notebookNotes.length ? 'bg-blue-500/20 border-2 border-dashed border-blue-500' : ''
+                      dragOverNoteIndex === notebookNotes.length
+                        ? isBookNotebook
+                          ? 'bg-amber-500/20 border-2 border-dashed border-amber-500'
+                          : 'bg-blue-500/20 border-2 border-dashed border-blue-500'
+                        : ''
                     }`}
                   />
                 )}
@@ -3475,7 +3498,11 @@ export default function PromptRepository() {
               {/* Note Header */}
               <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
-                  {currentNote.type === 'spreadsheet' ? (
+                  {isBookNotebook ? (
+                    <span className="flex-shrink-0 w-8 h-8 rounded bg-amber-500/20 text-amber-400 text-sm font-bold flex items-center justify-center">
+                      {notebookNotes.findIndex(n => n.id === currentNote.id) + 1}
+                    </span>
+                  ) : currentNote.type === 'spreadsheet' ? (
                     <Table size={20} className="text-green-500 flex-shrink-0" />
                   ) : (
                     <FileText size={20} className="text-blue-500 flex-shrink-0" />
@@ -3732,6 +3759,8 @@ export default function PromptRepository() {
             >
               {notebook.type === 'prompts' ? (
                 <FileText size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
+              ) : notebook.type === 'book' ? (
+                <BookOpen size={18} className={activeNotebook === notebook.id ? 'text-amber-400' : dragOverNotebook === notebook.id ? 'text-green-400' : 'text-amber-500/70'} />
               ) : (
                 <Notebook size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
               )}
@@ -3800,6 +3829,8 @@ export default function PromptRepository() {
               <h1 className="font-bold text-xl flex items-center gap-2">
                 {isPromptsNotebook ? (
                   <FileText size={24} className="text-blue-500" />
+                ) : isBookNotebook ? (
+                  <BookOpen size={24} className="text-amber-400" />
                 ) : (
                   <Notebook size={24} className="text-purple-500" />
                 )}
@@ -4114,28 +4145,59 @@ export default function PromptRepository() {
                 <Notebook size={20} className="text-purple-500" />
                 Create New Notebook
               </h2>
-              <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }} className="p-1 hover:bg-zinc-700 rounded">
+              <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); setNewNotebookType('notebook'); }} className="p-1 hover:bg-zinc-700 rounded">
                 <X size={18} />
               </button>
             </div>
             <div className="p-4 flex-1 min-h-0 modal-scroll">
-              <label className="block text-sm text-zinc-400 mb-2">Notebook Name</label>
+              <label className="block text-sm text-zinc-400 mb-2">Type</label>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <button
+                  onClick={() => setNewNotebookType('notebook')}
+                  className={`p-4 rounded-lg border text-left transition-colors ${
+                    newNotebookType === 'notebook'
+                      ? 'border-blue-500 bg-blue-500/10'
+                      : 'border-zinc-700 hover:border-zinc-600'
+                  }`}
+                >
+                  <Notebook size={24} className={newNotebookType === 'notebook' ? 'text-blue-400 mb-2' : 'text-zinc-500 mb-2'} />
+                  <div className="font-medium text-sm">Notebook</div>
+                  <div className="text-xs text-zinc-500 mt-1">General-purpose notes collection</div>
+                </button>
+                <button
+                  onClick={() => setNewNotebookType('book')}
+                  className={`p-4 rounded-lg border text-left transition-colors ${
+                    newNotebookType === 'book'
+                      ? 'border-amber-500 bg-amber-500/10'
+                      : 'border-zinc-700 hover:border-zinc-600'
+                  }`}
+                >
+                  <BookOpen size={24} className={newNotebookType === 'book' ? 'text-amber-400 mb-2' : 'text-zinc-500 mb-2'} />
+                  <div className="font-medium text-sm">Book</div>
+                  <div className="text-xs text-zinc-500 mt-1">Ordered chapters you can drag to rearrange</div>
+                </button>
+              </div>
+              <label className="block text-sm text-zinc-400 mb-2">{newNotebookType === 'book' ? 'Book Title' : 'Notebook Name'}</label>
               <input
                 type="text"
                 value={newNotebookName}
                 onChange={(e) => setNewNotebookName(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                placeholder="My Notebook"
+                className={`w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none ${
+                  newNotebookType === 'book' ? 'focus:border-amber-500' : 'focus:border-blue-500'
+                }`}
+                placeholder={newNotebookType === 'book' ? 'My Book' : 'My Notebook'}
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); }}
               />
               <p className="text-xs text-zinc-500 mt-2">
-                Create a notebook to organize your notes. You can add, edit, and delete notes within each notebook.
+                {newNotebookType === 'book'
+                  ? 'Create a book with chapters. Drag chapters to reorder them.'
+                  : 'Create a notebook to organize your notes. You can add, edit, and delete notes within each notebook.'}
               </p>
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
               <button
-                onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }}
+                onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); setNewNotebookType('notebook'); }}
                 className="px-4 py-2 text-sm hover:bg-zinc-700 rounded"
               >
                 Cancel
@@ -4143,9 +4205,13 @@ export default function PromptRepository() {
               <button
                 onClick={createNotebook}
                 disabled={!newNotebookName.trim()}
-                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:bg-zinc-600 disabled:cursor-not-allowed rounded flex items-center gap-2"
+                className={`px-4 py-2 text-sm disabled:bg-zinc-600 disabled:cursor-not-allowed rounded flex items-center gap-2 ${
+                  newNotebookType === 'book'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                }`}
               >
-                <Plus size={14} /> Create Notebook
+                <Plus size={14} /> {newNotebookType === 'book' ? 'Create Book' : 'Create Notebook'}
               </button>
             </div>
           </div>
@@ -4158,14 +4224,16 @@ export default function PromptRepository() {
           <div className="bg-zinc-800 rounded-lg w-[75vw] h-[75vh] flex flex-col overflow-hidden">
             <div className="flex items-center justify-between p-4 border-b border-zinc-700 flex-shrink-0">
               <h2 className="font-semibold flex items-center gap-2">
-                {noteForm.type === 'spreadsheet' ? (
+                {isBookNotebook ? (
+                  <BookOpen size={20} className="text-amber-400" />
+                ) : noteForm.type === 'spreadsheet' ? (
                   <Table size={20} className="text-green-500" />
                 ) : noteForm.type === 'prompt' ? (
                   <MessageSquare size={20} className="text-purple-500" />
                 ) : (
                   <FileText size={20} className="text-blue-500" />
                 )}
-                Create New Note
+                {isBookNotebook ? 'Add New Chapter' : 'Create New Note'}
               </h2>
               <button onClick={() => { setShowNewNote(false); setNoteForm({ title: '', content: '', type: 'text', tags: [] }); setSelectedSpreadsheetTemplate(null); }} className="p-1 hover:bg-zinc-700 rounded">
                 <X size={18} />
@@ -4208,13 +4276,13 @@ export default function PromptRepository() {
               </div>
 
               <div>
-                <label className="block text-sm text-zinc-400 mb-2">Title</label>
+                <label className="block text-sm text-zinc-400 mb-2">{isBookNotebook ? 'Chapter Title' : 'Title'}</label>
                 <input
                   type="text"
                   value={noteForm.title}
                   onChange={(e) => setNoteForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
-                  placeholder="Note title"
+                  className={`w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none ${isBookNotebook ? 'focus:border-amber-500' : 'focus:border-blue-500'}`}
+                  placeholder={isBookNotebook ? 'Chapter title' : 'Note title'}
                   autoFocus
                 />
               </div>
@@ -4222,12 +4290,12 @@ export default function PromptRepository() {
               {/* Only show content field for text notes */}
               {noteForm.type === 'text' && (
                 <div>
-                  <label className="block text-sm text-zinc-400 mb-2">Content (optional)</label>
+                  <label className="block text-sm text-zinc-400 mb-2">{isBookNotebook ? 'Chapter Content (optional)' : 'Content (optional)'}</label>
                   <textarea
                     value={noteForm.content}
                     onChange={(e) => setNoteForm(prev => ({ ...prev, content: e.target.value }))}
-                    className="w-full h-32 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none focus:border-blue-500"
-                    placeholder="Write your note content here... You can paste any text content."
+                    className={`w-full h-32 bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm resize-none focus:outline-none ${isBookNotebook ? 'focus:border-amber-500' : 'focus:border-blue-500'}`}
+                    placeholder={isBookNotebook ? 'Write your chapter content here...' : 'Write your note content here... You can paste any text content.'}
                   />
                 </div>
               )}

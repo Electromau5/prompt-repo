@@ -43,7 +43,7 @@ export interface FolderTreeNode {
 export interface Notebook {
   id: string;
   name: string;
-  type: 'prompts' | 'notebook';
+  type: 'prompts' | 'notebook' | 'book';
   createdAt?: Date;
   updatedAt?: Date;
 }
