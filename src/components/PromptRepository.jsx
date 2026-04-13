@@ -2826,10 +2826,73 @@ export default function PromptRepository() {
     });
     const [renamingSection, setRenamingSection] = useState(null); // { id, title }
     const [renamingChapter, setRenamingChapter] = useState(null); // { sectionId, id, title }
+    const [draggingChapter, setDraggingChapter] = useState(null); // { sectionId, chapterId }
+    const [dragOverTarget, setDragOverTarget] = useState(null); // { sectionId, index }
 
     const saveData = (newData) => {
       setBookData(newData);
       onUpdate(JSON.stringify(newData));
+    };
+
+    const handleChapterDragStart = (e, sectionId, chapterId) => {
+      setDraggingChapter({ sectionId, chapterId });
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', chapterId);
+      e.target.style.opacity = '0.4';
+    };
+
+    const handleChapterDragEnd = (e) => {
+      e.target.style.opacity = '1';
+      setDraggingChapter(null);
+      setDragOverTarget(null);
+    };
+
+    const handleChapterDragOver = (e, sectionId, index) => {
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      if (draggingChapter) {
+        setDragOverTarget({ sectionId, index });
+      }
+    };
+
+    const handleChapterDrop = (e, targetSectionId, targetIndex) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setDragOverTarget(null);
+
+      if (!draggingChapter) return;
+
+      const { sectionId: sourceSectionId, chapterId } = draggingChapter;
+      const sourceSection = bookData.sections.find(s => s.id === sourceSectionId);
+      const chapter = sourceSection?.chapters.find(c => c.id === chapterId);
+      if (!chapter) { setDraggingChapter(null); return; }
+
+      let newSections;
+      if (sourceSectionId === targetSectionId) {
+        // Reorder within the same section
+        const section = bookData.sections.find(s => s.id === sourceSectionId);
+        const chapters = [...section.chapters];
+        const fromIndex = chapters.findIndex(c => c.id === chapterId);
+        if (fromIndex === targetIndex || fromIndex === -1) { setDraggingChapter(null); return; }
+        const [moved] = chapters.splice(fromIndex, 1);
+        chapters.splice(targetIndex > fromIndex ? targetIndex - 1 : targetIndex, 0, moved);
+        newSections = bookData.sections.map(s => s.id === sourceSectionId ? { ...s, chapters } : s);
+      } else {
+        // Move across sections
+        const sourceChapters = sourceSection.chapters.filter(c => c.id !== chapterId);
+        const targetSection = bookData.sections.find(s => s.id === targetSectionId);
+        const targetChapters = [...targetSection.chapters];
+        targetChapters.splice(targetIndex, 0, chapter);
+        newSections = bookData.sections.map(s => {
+          if (s.id === sourceSectionId) return { ...s, chapters: sourceChapters.length ? sourceChapters : [{ id: generateId(), title: 'Chapter 1', content: '' }] };
+          if (s.id === targetSectionId) return { ...s, chapters: targetChapters };
+          return s;
+        });
+      }
+
+      saveData({ ...bookData, sections: newSections, activeSectionId: targetSectionId, activeChapterId: chapterId });
+      setDraggingChapter(null);
     };
 
     const activeSection = bookData.sections.find(s => s.id === bookData.activeSectionId);
@@ -2971,12 +3034,26 @@ export default function PromptRepository() {
                 {/* Chapters */}
                 {expandedSections.has(section.id) && (
                   <>
-                    {section.chapters.map(chapter => (
+                    {section.chapters.map((chapter, chapterIndex) => (
                       <div
                         key={chapter.id}
-                        className={`group flex items-center gap-1 pl-6 pr-2 py-1 cursor-pointer hover:bg-zinc-800 ${bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id ? 'bg-zinc-800 text-white' : 'text-zinc-500'}`}
+                        draggable={!renamingChapter || renamingChapter.id !== chapter.id}
+                        onDragStart={(e) => handleChapterDragStart(e, section.id, chapter.id)}
+                        onDragEnd={handleChapterDragEnd}
+                        onDragOver={(e) => handleChapterDragOver(e, section.id, chapterIndex)}
+                        onDrop={(e) => handleChapterDrop(e, section.id, chapterIndex)}
+                        className={`group flex items-center gap-1 pl-4 pr-2 py-1 cursor-grab active:cursor-grabbing hover:bg-zinc-800 ${
+                          bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id
+                            ? 'bg-zinc-800 text-white'
+                            : draggingChapter?.chapterId === chapter.id
+                              ? 'opacity-40'
+                              : dragOverTarget?.sectionId === section.id && dragOverTarget?.index === chapterIndex && draggingChapter
+                                ? 'border-t border-t-amber-500'
+                                : 'text-zinc-500'
+                        }`}
                         onClick={() => selectChapter(section.id, chapter.id)}
                       >
+                        <GripVertical size={10} className="text-zinc-600 flex-shrink-0 mr-0.5" />
                         {renamingChapter?.id === chapter.id ? (
                           <>
                             <input
@@ -3015,6 +3092,18 @@ export default function PromptRepository() {
                         ) : null}
                       </div>
                     ))}
+                    {/* Drop zone at end of chapter list */}
+                    {draggingChapter && (
+                      <div
+                        onDragOver={(e) => handleChapterDragOver(e, section.id, section.chapters.length)}
+                        onDrop={(e) => handleChapterDrop(e, section.id, section.chapters.length)}
+                        className={`h-4 mx-2 rounded transition-colors ${
+                          dragOverTarget?.sectionId === section.id && dragOverTarget?.index === section.chapters.length
+                            ? 'bg-amber-500/20 border border-dashed border-amber-500'
+                            : ''
+                        }`}
+                      />
+                    )}
                     {/* Always-visible Add Chapter button */}
                     <button
                       onClick={() => addChapter(section.id)}
