@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -2808,15 +2808,42 @@ export default function PromptRepository() {
     const parseBookData = (content) => {
       try {
         const parsed = JSON.parse(content);
-        if (parsed.sections && Array.isArray(parsed.sections)) return parsed;
+        if (parsed.sections && Array.isArray(parsed.sections)) {
+          return { ...parsed, autoNumberChapters: parsed.autoNumberChapters !== false };
+        }
       } catch {}
       const sectionId = generateId();
       const chapterId = generateId();
       return {
-        sections: [{ id: sectionId, title: 'Section 1', chapters: [{ id: chapterId, title: 'Chapter 1', content: '' }] }],
+        sections: [{ id: sectionId, title: 'Section 1', chapters: [{ id: chapterId, title: 'Untitled', content: '' }] }],
         activeSectionId: sectionId,
-        activeChapterId: chapterId
+        activeChapterId: chapterId,
+        autoNumberChapters: true
       };
+    };
+
+    // Compute the 1-based global chapter number across all sections
+    const getGlobalChapterNumber = (sections, sectionId, chapterId) => {
+      let num = 0;
+      for (const section of sections) {
+        for (const chapter of section.chapters) {
+          num++;
+          if (section.id === sectionId && chapter.id === chapterId) return num;
+        }
+      }
+      return num;
+    };
+
+    // Get total chapter count across all sections
+    const getTotalChapterCount = (sections) => {
+      return sections.reduce((sum, s) => sum + s.chapters.length, 0);
+    };
+
+    // Format chapter display title with optional auto-numbering
+    const formatChapterTitle = (sections, sectionId, chapterId, rawTitle, autoNumber) => {
+      if (!autoNumber) return rawTitle;
+      const num = getGlobalChapterNumber(sections, sectionId, chapterId);
+      return `Chapter ${num} : ${rawTitle}`;
     };
 
     const [bookData, setBookData] = useState(() => parseBookData(note.content));
@@ -2885,7 +2912,7 @@ export default function PromptRepository() {
         const targetChapters = [...targetSection.chapters];
         targetChapters.splice(targetIndex, 0, chapter);
         newSections = bookData.sections.map(s => {
-          if (s.id === sourceSectionId) return { ...s, chapters: sourceChapters.length ? sourceChapters : [{ id: generateId(), title: 'Chapter 1', content: '' }] };
+          if (s.id === sourceSectionId) return { ...s, chapters: sourceChapters.length ? sourceChapters : [{ id: generateId(), title: 'Untitled', content: '' }] };
           if (s.id === targetSectionId) return { ...s, chapters: targetChapters };
           return s;
         });
@@ -2905,7 +2932,8 @@ export default function PromptRepository() {
     const addSection = () => {
       const newId = generateId();
       const newChapterId = generateId();
-      const newSection = { id: newId, title: `Section ${bookData.sections.length + 1}`, chapters: [{ id: newChapterId, title: 'Chapter 1', content: '' }] };
+      const defaultTitle = bookData.autoNumberChapters ? 'Untitled' : `Chapter ${getTotalChapterCount(bookData.sections) + 1}`;
+      const newSection = { id: newId, title: `Section ${bookData.sections.length + 1}`, chapters: [{ id: newChapterId, title: defaultTitle, content: '' }] };
       const newData = { ...bookData, sections: [...bookData.sections, newSection], activeSectionId: newId, activeChapterId: newChapterId };
       setExpandedSections(prev => new Set([...prev, newId]));
       saveData(newData);
@@ -2914,7 +2942,8 @@ export default function PromptRepository() {
     const addChapter = (sectionId) => {
       const section = bookData.sections.find(s => s.id === sectionId);
       const newChapterId = generateId();
-      const newChapter = { id: newChapterId, title: `Chapter ${section.chapters.length + 1}`, content: '' };
+      const defaultTitle = bookData.autoNumberChapters ? 'Untitled' : `Chapter ${section.chapters.length + 1}`;
+      const newChapter = { id: newChapterId, title: defaultTitle, content: '' };
       const newData = {
         ...bookData,
         sections: bookData.sections.map(s => s.id === sectionId ? { ...s, chapters: [...s.chapters, newChapter] } : s),
@@ -2985,19 +3014,54 @@ export default function PromptRepository() {
       setRenamingChapter(null);
     };
 
+    const toggleAutoNumbering = () => {
+      const turning_on = !bookData.autoNumberChapters;
+      let newSections = bookData.sections;
+      if (turning_on) {
+        // Stripping existing "Chapter N : " or "Chapter N:" prefixes from titles
+        newSections = bookData.sections.map(s => ({
+          ...s,
+          chapters: s.chapters.map(c => ({
+            ...c,
+            title: c.title.replace(/^Chapter\s+\d+\s*:\s*/i, '').trim() || 'Untitled'
+          }))
+        }));
+      } else {
+        // Bake in the current numbering into titles
+        let num = 0;
+        newSections = bookData.sections.map(s => ({
+          ...s,
+          chapters: s.chapters.map(c => {
+            num++;
+            return { ...c, title: `Chapter ${num} : ${c.title}` };
+          })
+        }));
+      }
+      saveData({ ...bookData, sections: newSections, autoNumberChapters: turning_on });
+    };
+
     return (
       <div className="flex h-full gap-0 min-h-0">
         {/* Left sidebar: sections & chapters */}
         <div className="w-56 flex-shrink-0 border-r border-zinc-800 flex flex-col min-h-0 overflow-y-auto">
           <div className="p-2 border-b border-zinc-800 flex items-center justify-between">
             <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Contents</span>
-            <button
-              onClick={addSection}
-              className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
-              title="Add section"
-            >
-              <Plus size={14} />
-            </button>
+            <div className="flex items-center gap-0.5">
+              <button
+                onClick={toggleAutoNumbering}
+                className={`p-1 rounded ${bookData.autoNumberChapters ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300'}`}
+                title={bookData.autoNumberChapters ? 'Auto-numbering ON — click to turn off' : 'Auto-numbering OFF — click to turn on'}
+              >
+                <Hash size={13} />
+              </button>
+              <button
+                onClick={addSection}
+                className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                title="Add section"
+              >
+                <Plus size={14} />
+              </button>
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             {bookData.sections.map(section => (
@@ -3056,6 +3120,9 @@ export default function PromptRepository() {
                         <GripVertical size={10} className="text-zinc-600 flex-shrink-0 mr-0.5" />
                         {renamingChapter?.id === chapter.id ? (
                           <>
+                            {bookData.autoNumberChapters && (
+                              <span className="text-xs text-amber-400/70 flex-shrink-0 select-none">Ch.{getGlobalChapterNumber(bookData.sections, section.id, chapter.id)}:&nbsp;</span>
+                            )}
                             <input
                               autoFocus
                               value={renamingChapter.title}
@@ -3068,7 +3135,7 @@ export default function PromptRepository() {
                             <button onMouseDown={e => { e.preventDefault(); e.stopPropagation(); setRenamingChapter(null); }} className="p-0.5 text-zinc-500 hover:text-white flex-shrink-0" title="Cancel"><X size={10} /></button>
                           </>
                         ) : (
-                          <span className="flex-1 text-xs truncate">{chapter.title}</span>
+                          <span className="flex-1 text-xs truncate">{formatChapterTitle(bookData.sections, section.id, chapter.id, chapter.title, bookData.autoNumberChapters)}</span>
                         )}
                         {!renamingChapter || renamingChapter.id !== chapter.id ? (
                         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 flex-shrink-0">
@@ -3126,6 +3193,11 @@ export default function PromptRepository() {
                 <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
                 <span className="text-xs text-zinc-500 flex-shrink-0">{activeSection?.title}</span>
                 <ChevronRight size={12} className="text-zinc-600 flex-shrink-0" />
+                {bookData.autoNumberChapters && (
+                  <span className="text-sm font-medium text-amber-400/70 flex-shrink-0 select-none">
+                    Chapter {getGlobalChapterNumber(bookData.sections, activeSection?.id, activeChapter.id)} :&nbsp;
+                  </span>
+                )}
                 <input
                   key={activeChapter.id}
                   defaultValue={activeChapter.title}
