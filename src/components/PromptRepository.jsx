@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -242,7 +242,10 @@ export default function PromptRepository() {
   const noteTemplates = [
     { id: 'text', name: 'Text Note', icon: 'FileText', description: 'Simple text note for writing' },
     { id: 'spreadsheet', name: 'Spreadsheet', icon: 'Table', description: 'Table with rows and columns' },
-    { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' },
+    { id: 'repository', name: 'Repository', icon: 'Database', description: 'Structured data storage for prompts and filepaths', subcategories: [
+      { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' },
+      { id: 'filepath', name: 'Filepath', icon: 'FolderSymlink', description: 'Store file and folder paths for quick access' }
+    ]},
     { id: 'book', name: 'Book', icon: 'BookOpen', description: 'Organize content into sections and chapters' }
   ];
 
@@ -577,13 +580,27 @@ export default function PromptRepository() {
         });
       }
     }
+    if (noteForm.type === 'filepath') {
+      initialContent = JSON.stringify({
+        tables: [{
+          name: 'Filepaths',
+          columns: ['Name', 'Path', 'Type', 'Description'],
+          columnWidths: [150, 300, 100, 200],
+          columnTypes: [{ type: 'text' }, { type: 'text' }, { type: 'dropdown', options: ['file', 'folder'] }, { type: 'text' }],
+          rows: [['', '', 'file', ''], ['', '', 'file', ''], ['', '', 'file', '']]
+        }],
+        activeTableIndex: 0
+      });
+    }
 
     try {
-      // Set template for prompt-type notes
-      const template = noteForm.type === 'prompt' ? 'prompt' : null;
+      // Set template and resolve storage type
+      const isFilepath = noteForm.type === 'filepath';
+      const template = noteForm.type === 'prompt' ? 'prompt' : isFilepath ? 'filepath' : null;
+      const storageType = isFilepath ? 'spreadsheet' : noteForm.type;
       const tags = noteForm.tags || [];
 
-      const newNote = await api.createNote(activeNotebook, noteForm.title.trim(), initialContent, noteForm.type, template, tags);
+      const newNote = await api.createNote(activeNotebook, noteForm.title.trim(), initialContent, storageType, template, tags);
       setNotes(prev => [...prev, newNote]);
 
       // Update global tags if new ones were added
@@ -4750,6 +4767,8 @@ export default function PromptRepository() {
                   <Table size={20} className="text-green-500" />
                 ) : noteForm.type === 'prompt' ? (
                   <MessageSquare size={20} className="text-purple-500" />
+                ) : noteForm.type === 'filepath' ? (
+                  <FolderSymlink size={20} className="text-cyan-500" />
                 ) : (
                   <FileText size={20} className="text-blue-500" />
                 )}
@@ -4764,36 +4783,78 @@ export default function PromptRepository() {
               <div>
                 <label className="block text-sm text-zinc-400 mb-2">Template</label>
                 <div className="grid grid-cols-2 gap-3">
-                  {noteTemplates.map(template => (
-                    <button
-                      key={template.id}
-                      onClick={() => {
-                        setNoteForm(prev => ({ ...prev, type: template.id }));
-                        if (template.id !== 'spreadsheet') {
-                          setSelectedSpreadsheetTemplate(null);
-                        }
-                      }}
-                      className={`p-4 rounded-lg border-2 text-left transition-colors ${
-                        noteForm.type === template.id
-                          ? 'border-blue-500 bg-blue-500/10'
-                          : 'border-zinc-700 hover:border-zinc-600 bg-zinc-900'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3 mb-2">
-                        {template.icon === 'Table' ? (
-                          <Table size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
-                        ) : template.icon === 'MessageSquare' ? (
-                          <MessageSquare size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
-                        ) : template.icon === 'BookOpen' ? (
-                          <BookOpen size={20} className={noteForm.type === template.id ? 'text-amber-400' : 'text-zinc-400'} />
-                        ) : (
-                          <FileText size={20} className={noteForm.type === template.id ? 'text-blue-400' : 'text-zinc-400'} />
+                  {noteTemplates.map(template => {
+                    const isRepository = template.id === 'repository';
+                    const isRepoSubType = isRepository && (noteForm.type === 'prompt' || noteForm.type === 'filepath');
+                    const isActive = isRepository ? isRepoSubType : noteForm.type === template.id;
+
+                    const iconMap = {
+                      'FileText': <FileText size={20} className={isActive ? 'text-blue-400' : 'text-zinc-400'} />,
+                      'Table': <Table size={20} className={isActive ? 'text-blue-400' : 'text-zinc-400'} />,
+                      'Database': <Database size={20} className={isActive ? 'text-cyan-400' : 'text-zinc-400'} />,
+                      'BookOpen': <BookOpen size={20} className={isActive ? 'text-amber-400' : 'text-zinc-400'} />,
+                    };
+
+                    return (
+                      <div key={template.id} className="flex flex-col gap-2">
+                        <button
+                          onClick={() => {
+                            if (isRepository) {
+                              // Default to 'prompt' when clicking Repository
+                              if (!isRepoSubType) {
+                                setNoteForm(prev => ({ ...prev, type: 'prompt' }));
+                              }
+                            } else {
+                              setNoteForm(prev => ({ ...prev, type: template.id }));
+                            }
+                            if (template.id !== 'spreadsheet') {
+                              setSelectedSpreadsheetTemplate(null);
+                            }
+                          }}
+                          className={`p-4 rounded-lg border-2 text-left transition-colors ${
+                            isActive
+                              ? isRepository ? 'border-cyan-500 bg-cyan-500/10' : 'border-blue-500 bg-blue-500/10'
+                              : 'border-zinc-700 hover:border-zinc-600 bg-zinc-900'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3 mb-2">
+                            {iconMap[template.icon] || <FileText size={20} className="text-zinc-400" />}
+                            <span className="font-medium">{template.name}</span>
+                          </div>
+                          <p className="text-xs text-zinc-500">{template.description}</p>
+                        </button>
+                        {/* Sub-category selector for Repository */}
+                        {isRepository && isRepoSubType && (
+                          <div className="grid grid-cols-2 gap-2">
+                            {template.subcategories.map(sub => {
+                              const subActive = noteForm.type === sub.id;
+                              return (
+                                <button
+                                  key={sub.id}
+                                  onClick={() => setNoteForm(prev => ({ ...prev, type: sub.id }))}
+                                  className={`p-3 rounded-lg border text-left transition-colors ${
+                                    subActive
+                                      ? 'border-cyan-500 bg-cyan-500/10'
+                                      : 'border-zinc-700 hover:border-zinc-600 bg-zinc-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2 mb-1">
+                                    {sub.icon === 'MessageSquare' ? (
+                                      <MessageSquare size={16} className={subActive ? 'text-purple-400' : 'text-zinc-400'} />
+                                    ) : (
+                                      <FolderSymlink size={16} className={subActive ? 'text-cyan-400' : 'text-zinc-400'} />
+                                    )}
+                                    <span className="font-medium text-sm">{sub.name}</span>
+                                  </div>
+                                  <p className="text-xs text-zinc-500">{sub.description}</p>
+                                </button>
+                              );
+                            })}
+                          </div>
                         )}
-                        <span className="font-medium">{template.name}</span>
                       </div>
-                      <p className="text-xs text-zinc-500">{template.description}</p>
-                    </button>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
 
@@ -4937,6 +4998,20 @@ export default function PromptRepository() {
                     )}
                   </div>
                 </>
+              )}
+
+              {/* Filepath-specific fields */}
+              {noteForm.type === 'filepath' && (
+                <div className="space-y-3">
+                  <p className="text-xs text-zinc-500">This creates a spreadsheet to store filepaths you can quickly copy to your terminal or use to locate files and folders.</p>
+                  <div className="bg-zinc-900 border border-zinc-700 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <FolderSymlink size={16} className="text-cyan-400" />
+                      <span className="text-sm font-medium text-zinc-300">Filepath columns: Name, Path, Type, Description</span>
+                    </div>
+                    <p className="text-xs text-zinc-500">Each row stores a filepath with a label, the full path, type (file/folder), and an optional description.</p>
+                  </div>
+                </div>
               )}
             </div>
             <div className="flex justify-end gap-2 p-4 border-t border-zinc-700 flex-shrink-0">
