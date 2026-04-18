@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -2872,6 +2872,9 @@ export default function PromptRepository() {
     const [renamingChapter, setRenamingChapter] = useState(null); // { sectionId, id, title }
     const [draggingChapter, setDraggingChapter] = useState(null); // { sectionId, chapterId }
     const [dragOverTarget, setDragOverTarget] = useState(null); // { sectionId, index }
+    const [showVersionModal, setShowVersionModal] = useState(false); // Show save version modal
+    const [versionName, setVersionName] = useState(''); // Version name input
+    const [showVersionHistory, setShowVersionHistory] = useState(false); // Show version history dropdown
 
     const saveData = (newData) => {
       setBookData(newData);
@@ -3057,6 +3060,77 @@ export default function PromptRepository() {
       saveData({ ...bookData, sections: newSections, autoNumberChapters: turning_on });
     };
 
+    // Save current chapter content as a named version
+    const saveVersion = (name) => {
+      if (!activeChapter || !name.trim()) return;
+      const newVersion = {
+        id: generateId(),
+        name: name.trim(),
+        content: activeChapter.content,
+        savedAt: new Date().toISOString()
+      };
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === bookData.activeSectionId
+          ? {
+              ...s,
+              chapters: s.chapters.map(c => c.id === bookData.activeChapterId
+                ? { ...c, versions: [...(c.versions || []), newVersion] }
+                : c
+              )
+            }
+          : s
+        )
+      };
+      saveData(newData);
+      setShowVersionModal(false);
+      setVersionName('');
+    };
+
+    // Load a saved version into the chapter (restore)
+    const loadVersion = (versionId) => {
+      if (!activeChapter) return;
+      const version = (activeChapter.versions || []).find(v => v.id === versionId);
+      if (!version) return;
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === bookData.activeSectionId
+          ? {
+              ...s,
+              chapters: s.chapters.map(c => c.id === bookData.activeChapterId
+                ? { ...c, content: version.content }
+                : c
+              )
+            }
+          : s
+        )
+      };
+      saveData(newData);
+      setShowVersionHistory(false);
+    };
+
+    // Delete a saved version
+    const deleteVersion = (versionId) => {
+      if (!activeChapter) return;
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === bookData.activeSectionId
+          ? {
+              ...s,
+              chapters: s.chapters.map(c => c.id === bookData.activeChapterId
+                ? { ...c, versions: (c.versions || []).filter(v => v.id !== versionId) }
+                : c
+              )
+            }
+          : s
+        )
+      };
+      saveData(newData);
+    };
+
+    // Get versions for active chapter
+    const activeChapterVersions = activeChapter?.versions || [];
+
     return (
       <div className="flex h-full gap-0 min-h-0">
         {/* Left sidebar: sections & chapters */}
@@ -3233,6 +3307,92 @@ export default function PromptRepository() {
                   className="flex-1 min-w-0 bg-transparent text-sm font-medium text-zinc-200 focus:outline-none focus:bg-zinc-800 focus:rounded focus:px-2 focus:ring-1 focus:ring-amber-400 transition-all"
                   title="Click to rename chapter"
                 />
+                {/* Version controls */}
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  {/* Save Version button */}
+                  <button
+                    onClick={() => setShowVersionModal(true)}
+                    className="flex items-center gap-1 px-2 py-1 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                    title="Save current version"
+                  >
+                    <Save size={12} />
+                    <span>Save Version</span>
+                  </button>
+                  {/* Version history dropdown */}
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowVersionHistory(!showVersionHistory)}
+                      className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${
+                        activeChapterVersions.length > 0
+                          ? 'text-amber-400 hover:text-amber-300 hover:bg-zinc-700'
+                          : 'text-zinc-500 hover:text-zinc-400 hover:bg-zinc-700'
+                      }`}
+                      title={activeChapterVersions.length > 0 ? `${activeChapterVersions.length} saved version(s)` : 'No saved versions'}
+                    >
+                      <History size={12} />
+                      {activeChapterVersions.length > 0 && (
+                        <span className="bg-amber-500/20 text-amber-400 px-1.5 rounded-full text-[10px] font-medium">
+                          {activeChapterVersions.length}
+                        </span>
+                      )}
+                    </button>
+                    {/* Version history dropdown menu */}
+                    {showVersionHistory && (
+                      <div className="absolute right-0 top-full mt-1 w-72 bg-zinc-800 border border-zinc-700 rounded-lg shadow-xl z-50 overflow-hidden">
+                        <div className="px-3 py-2 border-b border-zinc-700 flex items-center justify-between">
+                          <span className="text-xs font-medium text-zinc-300">Saved Versions</span>
+                          <button
+                            onClick={() => setShowVersionHistory(false)}
+                            className="p-0.5 text-zinc-500 hover:text-white"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto">
+                          {activeChapterVersions.length === 0 ? (
+                            <div className="px-3 py-4 text-center text-xs text-zinc-500">
+                              No saved versions yet.<br />
+                              Click "Save Version" to save the current state.
+                            </div>
+                          ) : (
+                            activeChapterVersions.slice().reverse().map(version => (
+                              <div
+                                key={version.id}
+                                className="group px-3 py-2 hover:bg-zinc-700/50 border-b border-zinc-700/50 last:border-b-0"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="text-xs font-medium text-zinc-200 truncate">{version.name}</div>
+                                    <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
+                                      <Clock size={9} />
+                                      {new Date(version.savedAt).toLocaleString()}
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => loadVersion(version.id)}
+                                      className="p-1 text-green-400 hover:text-green-300 hover:bg-zinc-600 rounded"
+                                      title="Restore this version"
+                                    >
+                                      <RotateCcw size={11} />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteVersion(version.id)}
+                                      className="p-1 text-red-400 hover:text-red-300 hover:bg-zinc-600 rounded"
+                                      title="Delete this version"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
               <textarea
                 className="flex-1 bg-transparent p-4 text-sm text-zinc-200 resize-none focus:outline-none leading-relaxed placeholder-zinc-600"
@@ -3247,6 +3407,53 @@ export default function PromptRepository() {
             </div>
           )}
         </div>
+
+        {/* Save Version Modal */}
+        {showVersionModal && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowVersionModal(false)}>
+            <div className="bg-zinc-800 border border-zinc-700 rounded-lg shadow-2xl w-80" onClick={e => e.stopPropagation()}>
+              <div className="px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
+                <h3 className="text-sm font-medium text-zinc-200">Save Version</h3>
+                <button onClick={() => setShowVersionModal(false)} className="p-1 text-zinc-500 hover:text-white rounded">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="p-4">
+                <label className="block text-xs text-zinc-400 mb-2">Version Name</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={versionName}
+                  onChange={e => setVersionName(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && versionName.trim()) saveVersion(versionName);
+                    if (e.key === 'Escape') { setShowVersionModal(false); setVersionName(''); }
+                  }}
+                  placeholder="e.g., First Draft, After Review..."
+                  className="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                />
+                <p className="text-[10px] text-zinc-500 mt-2">
+                  This will save a snapshot of the current chapter content.
+                </p>
+              </div>
+              <div className="px-4 py-3 border-t border-zinc-700 flex justify-end gap-2">
+                <button
+                  onClick={() => { setShowVersionModal(false); setVersionName(''); }}
+                  className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => saveVersion(versionName)}
+                  disabled={!versionName.trim()}
+                  className="px-3 py-1.5 text-xs bg-amber-500 text-black font-medium rounded hover:bg-amber-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Save Version
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
