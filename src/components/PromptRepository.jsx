@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw, Plane } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -454,6 +454,80 @@ export default function PromptRepository() {
                   ['', '', '', '', '', '', ''],
                   ['', '', '', '', '', '', ''],
                   ['', '', '', '', '', '', '']
+                ]
+              }
+            ],
+            activeTableIndex: 0
+          }
+        }
+      ]
+    },
+    {
+      id: 'travel',
+      name: 'Travel',
+      icon: 'Plane',
+      templates: [
+        {
+          id: 'travel-itinerary',
+          name: 'Travel Itinerary',
+          description: 'Plan your trip with dates, locations, and traveller details',
+          data: {
+            tables: [
+              {
+                name: 'Trip Overview',
+                columns: ['Trip Name', 'Start Date', 'End Date', 'Destination', 'Travellers', 'Status', 'Budget ($)'],
+                columnWidths: [180, 120, 120, 160, 100, 120, 120],
+                columnTypes: [
+                  { type: 'text' },
+                  { type: 'date' },
+                  { type: 'date' },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Planning', 'Booked', 'In Progress', 'Completed', 'Cancelled'] },
+                  { type: 'text' }
+                ],
+                rows: [
+                  ['', '', '', '', '', '', '']
+                ]
+              },
+              {
+                name: 'Daily Itinerary',
+                columns: ['Date', 'Day', 'Location', 'Activity', 'Time', 'Accommodation', 'Transportation', 'Cost ($)', 'Notes'],
+                columnWidths: [120, 80, 150, 200, 100, 160, 140, 100, 180],
+                columnTypes: [
+                  { type: 'date' },
+                  { type: 'dropdown', options: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7', 'Day 8', 'Day 9', 'Day 10', 'Day 11', 'Day 12', 'Day 13', 'Day 14'] },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Flight', 'Train', 'Bus', 'Car Rental', 'Taxi/Uber', 'Walking', 'Ferry', 'Other'] },
+                  { type: 'text' },
+                  { type: 'text' }
+                ],
+                rows: [
+                  ['', '', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', '', ''],
+                  ['', '', '', '', '', '', '', '', '']
+                ]
+              },
+              {
+                name: 'Travellers',
+                columns: ['Name', 'Role', 'Passport #', 'Emergency Contact', 'Dietary Needs', 'Notes'],
+                columnWidths: [150, 120, 140, 180, 150, 180],
+                columnTypes: [
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['Lead Traveller', 'Adult', 'Child', 'Infant'] },
+                  { type: 'text' },
+                  { type: 'text' },
+                  { type: 'dropdown', options: ['None', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher', 'Allergies', 'Other'] },
+                  { type: 'text' }
+                ],
+                rows: [
+                  ['', '', '', '', '', ''],
+                  ['', '', '', '', '', '']
                 ]
               }
             ],
@@ -5102,6 +5176,8 @@ export default function PromptRepository() {
                           <DollarSign size={18} className="text-green-400" />
                         ) : category.icon === 'Briefcase' ? (
                           <Briefcase size={18} className="text-amber-400" />
+                        ) : category.icon === 'Plane' ? (
+                          <Plane size={18} className="text-sky-400" />
                         ) : (
                           <Target size={18} className="text-blue-400" />
                         )}
