@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw, Plane } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, ChevronUp, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw, Plane, MapPin } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -246,7 +246,8 @@ export default function PromptRepository() {
       { id: 'prompt', name: 'Prompt', icon: 'MessageSquare', description: 'AI prompt with instructions' },
       { id: 'filepath', name: 'Filepath', icon: 'FolderSymlink', description: 'Store file and folder paths for quick access' }
     ]},
-    { id: 'book', name: 'Book', icon: 'BookOpen', description: 'Organize content into sections and chapters' }
+    { id: 'book', name: 'Book', icon: 'BookOpen', description: 'Organize content into sections and chapters' },
+    { id: 'travel', name: 'Travel Itinerary', icon: 'Plane', description: 'Plan trips with dates, travelers, and activities' }
   ];
 
   // Spreadsheet template categories and templates
@@ -461,80 +462,6 @@ export default function PromptRepository() {
           }
         }
       ]
-    },
-    {
-      id: 'travel',
-      name: 'Travel',
-      icon: 'Plane',
-      templates: [
-        {
-          id: 'travel-itinerary',
-          name: 'Travel Itinerary',
-          description: 'Plan your trip with dates, locations, and traveller details',
-          data: {
-            tables: [
-              {
-                name: 'Trip Overview',
-                columns: ['Trip Name', 'Start Date', 'End Date', 'Destination', 'Travellers', 'Status', 'Budget ($)'],
-                columnWidths: [180, 120, 120, 160, 100, 120, 120],
-                columnTypes: [
-                  { type: 'text' },
-                  { type: 'date' },
-                  { type: 'date' },
-                  { type: 'text' },
-                  { type: 'text' },
-                  { type: 'dropdown', options: ['Planning', 'Booked', 'In Progress', 'Completed', 'Cancelled'] },
-                  { type: 'text' }
-                ],
-                rows: [
-                  ['', '', '', '', '', '', '']
-                ]
-              },
-              {
-                name: 'Daily Itinerary',
-                columns: ['Date', 'Day', 'Location', 'Activity', 'Time', 'Accommodation', 'Transportation', 'Cost ($)', 'Notes'],
-                columnWidths: [120, 80, 150, 200, 100, 160, 140, 100, 180],
-                columnTypes: [
-                  { type: 'date' },
-                  { type: 'dropdown', options: ['Day 1', 'Day 2', 'Day 3', 'Day 4', 'Day 5', 'Day 6', 'Day 7', 'Day 8', 'Day 9', 'Day 10', 'Day 11', 'Day 12', 'Day 13', 'Day 14'] },
-                  { type: 'text' },
-                  { type: 'text' },
-                  { type: 'text' },
-                  { type: 'text' },
-                  { type: 'dropdown', options: ['Flight', 'Train', 'Bus', 'Car Rental', 'Taxi/Uber', 'Walking', 'Ferry', 'Other'] },
-                  { type: 'text' },
-                  { type: 'text' }
-                ],
-                rows: [
-                  ['', '', '', '', '', '', '', '', ''],
-                  ['', '', '', '', '', '', '', '', ''],
-                  ['', '', '', '', '', '', '', '', ''],
-                  ['', '', '', '', '', '', '', '', ''],
-                  ['', '', '', '', '', '', '', '', '']
-                ]
-              },
-              {
-                name: 'Travellers',
-                columns: ['Name', 'Role', 'Passport #', 'Emergency Contact', 'Dietary Needs', 'Notes'],
-                columnWidths: [150, 120, 140, 180, 150, 180],
-                columnTypes: [
-                  { type: 'text' },
-                  { type: 'dropdown', options: ['Lead Traveller', 'Adult', 'Child', 'Infant'] },
-                  { type: 'text' },
-                  { type: 'text' },
-                  { type: 'dropdown', options: ['None', 'Vegetarian', 'Vegan', 'Gluten-Free', 'Halal', 'Kosher', 'Allergies', 'Other'] },
-                  { type: 'text' }
-                ],
-                rows: [
-                  ['', '', '', '', '', ''],
-                  ['', '', '', '', '', '']
-                ]
-              }
-            ],
-            activeTableIndex: 0
-          }
-        }
-      ]
     }
   ];
 
@@ -664,6 +591,24 @@ export default function PromptRepository() {
           rows: [['', '', 'file', ''], ['', '', 'file', ''], ['', '', 'file', '']]
         }],
         activeTableIndex: 0
+      });
+    }
+    if (noteForm.type === 'travel') {
+      initialContent = JSON.stringify({
+        tripData: {
+          destination: '',
+          startDate: '',
+          endDate: '',
+          arrivalTime: '',
+          departureTime: '',
+          accommodation: '',
+          checkInTime: '',
+          checkOutTime: '',
+          preferences: ''
+        },
+        travelers: [],
+        experiences: {},
+        selectedDay: null
       });
     }
 
@@ -3532,6 +3477,664 @@ export default function PromptRepository() {
     );
   };
 
+  // Travel Itinerary Editor Component
+  const TravelItineraryEditor = ({ note, onUpdate }) => {
+    const parseTravelData = (content) => {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.tripData) return parsed;
+      } catch {}
+      return {
+        tripData: {
+          destination: '',
+          startDate: '',
+          endDate: '',
+          arrivalTime: '',
+          departureTime: '',
+          accommodation: '',
+          checkInTime: '',
+          checkOutTime: '',
+          preferences: ''
+        },
+        travelers: [],
+        experiences: {},
+        selectedDay: null
+      };
+    };
+
+    const [travelData, setTravelData] = useState(() => parseTravelData(note.content));
+    const [showAddTraveler, setShowAddTraveler] = useState(false);
+    const [showAddActivity, setShowAddActivity] = useState(false);
+    const [newTraveler, setNewTraveler] = useState({ name: '', age: '', interests: '', dietaryRestrictions: '', mobilityNeeds: '' });
+    const [newActivity, setNewActivity] = useState({ name: '', category: 'other', time: '', duration: '', description: '' });
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const [expandedId, setExpandedId] = useState(null);
+    const [editingTimeId, setEditingTimeId] = useState(null);
+    const [tempTime, setTempTime] = useState('');
+    const [draggedId, setDraggedId] = useState(null);
+
+    const saveData = (newData) => {
+      setTravelData(newData);
+      onUpdate(JSON.stringify(newData));
+    };
+
+    const categories = [
+      { id: 'all', label: 'All', icon: '✨', color: 'bg-zinc-700 text-zinc-300' },
+      { id: 'dining', label: 'Dining', icon: '🍴', color: 'bg-orange-500/20 text-orange-400' },
+      { id: 'nightlife', label: 'Nightlife', icon: '🍸', color: 'bg-indigo-500/20 text-indigo-400' },
+      { id: 'culture', label: 'Culture', icon: '🏛️', color: 'bg-purple-500/20 text-purple-400' },
+      { id: 'shopping', label: 'Shopping', icon: '🛍️', color: 'bg-pink-500/20 text-pink-400' },
+      { id: 'adventure', label: 'Adventure', icon: '🏔️', color: 'bg-green-500/20 text-green-400' },
+      { id: 'transport', label: 'Transport', icon: '🚗', color: 'bg-sky-500/20 text-sky-400' },
+      { id: 'other', label: 'Other', icon: '📍', color: 'bg-zinc-500/20 text-zinc-400' },
+      { id: 'completed', label: 'Done', icon: '✅', color: 'bg-emerald-500/20 text-emerald-400' }
+    ];
+
+    const getCategoryStyle = (catId) => categories.find(c => c.id === catId)?.color || 'bg-zinc-700 text-zinc-300';
+
+    // Generate days from start to end date
+    const getDays = () => {
+      if (!travelData.tripData.startDate || !travelData.tripData.endDate) return [];
+      const start = new Date(travelData.tripData.startDate);
+      const end = new Date(travelData.tripData.endDate);
+      const days = [];
+      let current = new Date(start);
+      let dayNum = 1;
+      while (current <= end) {
+        days.push({ key: `day${dayNum}`, label: `Day ${dayNum}`, date: current.toISOString().split('T')[0] });
+        current.setDate(current.getDate() + 1);
+        dayNum++;
+      }
+      return days;
+    };
+
+    const days = getDays();
+    const selectedDay = travelData.selectedDay || (days.length > 0 ? days[0].key : null);
+
+    const updateTripData = (field, value) => {
+      saveData({ ...travelData, tripData: { ...travelData.tripData, [field]: value } });
+    };
+
+    const addTraveler = () => {
+      if (!newTraveler.name.trim()) return;
+      const traveler = { ...newTraveler, id: generateId() };
+      saveData({ ...travelData, travelers: [...travelData.travelers, traveler] });
+      setNewTraveler({ name: '', age: '', interests: '', dietaryRestrictions: '', mobilityNeeds: '' });
+      setShowAddTraveler(false);
+    };
+
+    const removeTraveler = (id) => {
+      saveData({ ...travelData, travelers: travelData.travelers.filter(t => t.id !== id) });
+    };
+
+    const addActivity = () => {
+      if (!newActivity.name.trim() || !selectedDay) return;
+      const activity = { ...newActivity, id: generateId(), completed: false, originalCategory: newActivity.category };
+      const dayActivities = travelData.experiences[selectedDay] || [];
+      saveData({
+        ...travelData,
+        experiences: { ...travelData.experiences, [selectedDay]: [...dayActivities, activity] }
+      });
+      setNewActivity({ name: '', category: 'other', time: '', duration: '', description: '' });
+      setShowAddActivity(false);
+    };
+
+    const removeActivity = (activityId) => {
+      const dayActivities = (travelData.experiences[selectedDay] || []).filter(a => a.id !== activityId);
+      saveData({ ...travelData, experiences: { ...travelData.experiences, [selectedDay]: dayActivities } });
+    };
+
+    const toggleActivityDone = (activityId) => {
+      const dayActivities = [...(travelData.experiences[selectedDay] || [])];
+      const idx = dayActivities.findIndex(a => a.id === activityId);
+      if (idx !== -1) {
+        const act = dayActivities[idx];
+        dayActivities[idx] = {
+          ...act,
+          completed: !act.completed,
+          category: act.completed ? act.originalCategory : 'completed'
+        };
+        saveData({ ...travelData, experiences: { ...travelData.experiences, [selectedDay]: dayActivities } });
+      }
+    };
+
+    const updateActivityTime = (activityId, newTime) => {
+      const dayActivities = [...(travelData.experiences[selectedDay] || [])];
+      const idx = dayActivities.findIndex(a => a.id === activityId);
+      if (idx !== -1) {
+        dayActivities[idx] = { ...dayActivities[idx], time: newTime };
+        saveData({ ...travelData, experiences: { ...travelData.experiences, [selectedDay]: dayActivities } });
+      }
+      setEditingTimeId(null);
+      setTempTime('');
+    };
+
+    const selectDay = (dayKey) => {
+      saveData({ ...travelData, selectedDay: dayKey });
+      setSelectedCategory('all');
+      setExpandedId(null);
+    };
+
+    const handleDragStart = (e, activityId) => {
+      setDraggedId(activityId);
+      e.dataTransfer.effectAllowed = 'move';
+    };
+
+    const handleDragOver = (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    };
+
+    const handleDrop = (e, targetId) => {
+      e.preventDefault();
+      if (draggedId === targetId) { setDraggedId(null); return; }
+      const dayActivities = [...(travelData.experiences[selectedDay] || [])];
+      const draggedIdx = dayActivities.findIndex(a => a.id === draggedId);
+      const targetIdx = dayActivities.findIndex(a => a.id === targetId);
+      if (draggedIdx !== -1 && targetIdx !== -1) {
+        const [dragged] = dayActivities.splice(draggedIdx, 1);
+        dayActivities.splice(targetIdx, 0, dragged);
+        saveData({ ...travelData, experiences: { ...travelData.experiences, [selectedDay]: dayActivities } });
+      }
+      setDraggedId(null);
+    };
+
+    const dayActivities = selectedDay ? (travelData.experiences[selectedDay] || []) : [];
+    const filteredActivities = selectedCategory === 'completed'
+      ? dayActivities.filter(a => a.completed)
+      : selectedCategory === 'all'
+      ? dayActivities.filter(a => !a.completed)
+      : dayActivities.filter(a => a.category === selectedCategory && !a.completed);
+
+    // Show trip setup if no dates set
+    if (!travelData.tripData.startDate || !travelData.tripData.endDate) {
+      return (
+        <div className="h-full overflow-y-auto p-6">
+          <div className="max-w-2xl mx-auto">
+            <div className="flex items-center gap-3 mb-6">
+              <Plane size={24} className="text-sky-400" />
+              <h2 className="text-xl font-semibold text-zinc-200">Travel Itinerary Setup</h2>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">Destination</label>
+                <input
+                  type="text"
+                  value={travelData.tripData.destination}
+                  onChange={(e) => updateTripData('destination', e.target.value)}
+                  placeholder="e.g., Paris, France"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">Start Date</label>
+                  <input
+                    type="date"
+                    value={travelData.tripData.startDate}
+                    onChange={(e) => updateTripData('startDate', e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">End Date</label>
+                  <input
+                    type="date"
+                    value={travelData.tripData.endDate}
+                    onChange={(e) => updateTripData('endDate', e.target.value)}
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">Arrival Time</label>
+                  <input
+                    type="text"
+                    value={travelData.tripData.arrivalTime}
+                    onChange={(e) => updateTripData('arrivalTime', e.target.value)}
+                    placeholder="e.g., 2:00 PM"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">Departure Time</label>
+                  <input
+                    type="text"
+                    value={travelData.tripData.departureTime}
+                    onChange={(e) => updateTripData('departureTime', e.target.value)}
+                    placeholder="e.g., 6:00 PM"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">Accommodation</label>
+                <input
+                  type="text"
+                  value={travelData.tripData.accommodation}
+                  onChange={(e) => updateTripData('accommodation', e.target.value)}
+                  placeholder="e.g., Hotel Marais, 15 Rue de Rivoli"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">Check-in Time</label>
+                  <input
+                    type="text"
+                    value={travelData.tripData.checkInTime}
+                    onChange={(e) => updateTripData('checkInTime', e.target.value)}
+                    placeholder="e.g., 3:00 PM"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-zinc-400 mb-1.5">Check-out Time</label>
+                  <input
+                    type="text"
+                    value={travelData.tripData.checkOutTime}
+                    onChange={(e) => updateTripData('checkOutTime', e.target.value)}
+                    placeholder="e.g., 11:00 AM"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm text-zinc-400 mb-1.5">Preferences / Notes</label>
+                <textarea
+                  value={travelData.tripData.preferences}
+                  onChange={(e) => updateTripData('preferences', e.target.value)}
+                  placeholder="e.g., Love local cuisine, prefer morning activities..."
+                  rows={3}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500 resize-none"
+                />
+              </div>
+
+              {travelData.tripData.startDate && travelData.tripData.endDate && (
+                <div className="pt-4 text-center">
+                  <p className="text-sm text-zinc-400">
+                    Trip duration: <span className="text-sky-400 font-medium">{days.length} days</span>
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Main itinerary view
+    return (
+      <div className="flex h-full gap-0 min-h-0">
+        {/* Left sidebar: Trip info, travelers, day selector */}
+        <div className="w-64 flex-shrink-0 border-r border-zinc-800 flex flex-col min-h-0 overflow-y-auto">
+          {/* Trip Overview */}
+          <div className="p-3 border-b border-zinc-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Plane size={14} className="text-sky-400" />
+              <span className="text-sm font-medium text-zinc-200">{travelData.tripData.destination || 'Trip'}</span>
+            </div>
+            <div className="text-xs text-zinc-500 space-y-0.5">
+              <div className="flex items-center gap-1">
+                <Calendar size={10} />
+                <span>{travelData.tripData.startDate} to {travelData.tripData.endDate}</span>
+              </div>
+              {travelData.tripData.accommodation && (
+                <div className="flex items-center gap-1">
+                  <MapPin size={10} />
+                  <span className="truncate">{travelData.tripData.accommodation}</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Travelers */}
+          <div className="p-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Travelers ({travelData.travelers.length})</span>
+              <button
+                onClick={() => setShowAddTraveler(!showAddTraveler)}
+                className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+              >
+                <Plus size={12} />
+              </button>
+            </div>
+
+            {showAddTraveler && (
+              <div className="bg-zinc-800 rounded-lg p-2 mb-2 space-y-2">
+                <input
+                  type="text"
+                  value={newTraveler.name}
+                  onChange={(e) => setNewTraveler({ ...newTraveler, name: e.target.value })}
+                  placeholder="Name"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                />
+                <div className="grid grid-cols-2 gap-1">
+                  <input
+                    type="text"
+                    value={newTraveler.age}
+                    onChange={(e) => setNewTraveler({ ...newTraveler, age: e.target.value })}
+                    placeholder="Age"
+                    className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                  <input
+                    type="text"
+                    value={newTraveler.interests}
+                    onChange={(e) => setNewTraveler({ ...newTraveler, interests: e.target.value })}
+                    placeholder="Interests"
+                    className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <input
+                  type="text"
+                  value={newTraveler.dietaryRestrictions}
+                  onChange={(e) => setNewTraveler({ ...newTraveler, dietaryRestrictions: e.target.value })}
+                  placeholder="Dietary restrictions (optional)"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded px-2 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                />
+                <div className="flex gap-1">
+                  <button
+                    onClick={addTraveler}
+                    disabled={!newTraveler.name.trim()}
+                    className="flex-1 px-2 py-1 text-xs bg-sky-500 text-white rounded hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add
+                  </button>
+                  <button
+                    onClick={() => { setShowAddTraveler(false); setNewTraveler({ name: '', age: '', interests: '', dietaryRestrictions: '', mobilityNeeds: '' }); }}
+                    className="px-2 py-1 text-xs bg-zinc-700 text-zinc-300 rounded hover:bg-zinc-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-1">
+              {travelData.travelers.map(traveler => (
+                <div key={traveler.id} className="group flex items-center justify-between bg-zinc-800/50 rounded px-2 py-1.5">
+                  <div className="min-w-0">
+                    <div className="text-xs text-zinc-200 truncate">{traveler.name}</div>
+                    {traveler.age && <div className="text-[10px] text-zinc-500">{traveler.age} yrs</div>}
+                  </div>
+                  <button
+                    onClick={() => removeTraveler(traveler.id)}
+                    className="p-0.5 text-zinc-600 hover:text-red-400 opacity-0 group-hover:opacity-100"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Day Selector */}
+          <div className="flex-1 overflow-y-auto p-2">
+            <div className="text-xs font-medium text-zinc-400 uppercase tracking-wide px-1 mb-2">Days</div>
+            <div className="space-y-1">
+              {days.map(day => {
+                const dayExps = travelData.experiences[day.key] || [];
+                const completedCount = dayExps.filter(e => e.completed).length;
+                return (
+                  <button
+                    key={day.key}
+                    onClick={() => selectDay(day.key)}
+                    className={`w-full text-left px-2 py-2 rounded-lg transition-colors ${
+                      selectedDay === day.key
+                        ? 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
+                        : 'hover:bg-zinc-800 text-zinc-400'
+                    }`}
+                  >
+                    <div className="text-xs font-medium">{day.label}</div>
+                    <div className="text-[10px] text-zinc-500">{day.date}</div>
+                    {dayExps.length > 0 && (
+                      <div className="text-[10px] mt-1">
+                        <span className="text-zinc-500">{dayExps.length} activities</span>
+                        {completedCount > 0 && <span className="text-emerald-400 ml-1">({completedCount} done)</span>}
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Right panel: Activities */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {/* Header with category filters */}
+          <div className="px-4 py-3 border-b border-zinc-800">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium text-zinc-200">
+                  {days.find(d => d.key === selectedDay)?.label}
+                </span>
+                <span className="text-xs text-zinc-500">
+                  {days.find(d => d.key === selectedDay)?.date}
+                </span>
+              </div>
+              <button
+                onClick={() => setShowAddActivity(true)}
+                className="flex items-center gap-1 px-2 py-1 text-xs bg-sky-500 text-white rounded hover:bg-sky-400"
+              >
+                <Plus size={12} />
+                Add Activity
+              </button>
+            </div>
+
+            {/* Category filter */}
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map(cat => (
+                <button
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                    selectedCategory === cat.id
+                      ? 'bg-sky-500 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  }`}
+                >
+                  {cat.icon} {cat.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Add Activity Modal */}
+          {showAddActivity && (
+            <div className="px-4 py-3 border-b border-zinc-700 bg-zinc-800/50">
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={newActivity.name}
+                  onChange={(e) => setNewActivity({ ...newActivity, name: e.target.value })}
+                  placeholder="Activity name"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  autoFocus
+                />
+                <div className="grid grid-cols-3 gap-2">
+                  <select
+                    value={newActivity.category}
+                    onChange={(e) => setNewActivity({ ...newActivity, category: e.target.value })}
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-200 focus:outline-none focus:border-sky-500"
+                  >
+                    {categories.filter(c => !['all', 'completed'].includes(c.id)).map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.icon} {cat.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={newActivity.time}
+                    onChange={(e) => setNewActivity({ ...newActivity, time: e.target.value })}
+                    placeholder="Time (e.g., 9:00 AM)"
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                  <input
+                    type="text"
+                    value={newActivity.duration}
+                    onChange={(e) => setNewActivity({ ...newActivity, duration: e.target.value })}
+                    placeholder="Duration"
+                    className="bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500"
+                  />
+                </div>
+                <textarea
+                  value={newActivity.description}
+                  onChange={(e) => setNewActivity({ ...newActivity, description: e.target.value })}
+                  placeholder="Description (optional)"
+                  rows={2}
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-sky-500 resize-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={addActivity}
+                    disabled={!newActivity.name.trim()}
+                    className="flex-1 px-3 py-2 text-sm bg-sky-500 text-white rounded-lg hover:bg-sky-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Add Activity
+                  </button>
+                  <button
+                    onClick={() => { setShowAddActivity(false); setNewActivity({ name: '', category: 'other', time: '', duration: '', description: '' }); }}
+                    className="px-3 py-2 text-sm bg-zinc-700 text-zinc-300 rounded-lg hover:bg-zinc-600"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Activities list */}
+          <div className="flex-1 overflow-y-auto p-4">
+            {filteredActivities.length === 0 ? (
+              <div className="text-center py-12 text-zinc-500">
+                <div className="text-4xl mb-3">{selectedCategory === 'all' ? '📋' : categories.find(c => c.id === selectedCategory)?.icon}</div>
+                <p className="text-sm">No {selectedCategory === 'all' ? '' : selectedCategory} activities yet</p>
+                <button
+                  onClick={() => setShowAddActivity(true)}
+                  className="mt-3 text-xs text-sky-400 hover:text-sky-300"
+                >
+                  + Add your first activity
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredActivities.map(activity => {
+                  const cat = categories.find(c => c.id === (activity.completed ? 'completed' : activity.category));
+                  return (
+                    <div
+                      key={activity.id}
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, activity.id)}
+                      onDragOver={handleDragOver}
+                      onDrop={(e) => handleDrop(e, activity.id)}
+                      className={`bg-zinc-800 rounded-lg overflow-hidden transition-all hover:bg-zinc-750 ${
+                        draggedId === activity.id ? 'opacity-50' : ''
+                      } ${activity.completed ? 'opacity-60' : ''}`}
+                    >
+                      <div className="p-4">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <GripVertical size={12} className="text-zinc-600 flex-shrink-0 cursor-grab" />
+                              <h3 className={`text-sm font-medium ${activity.completed ? 'line-through text-zinc-500' : 'text-zinc-200'}`}>
+                                {activity.name}
+                              </h3>
+                            </div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getCategoryStyle(activity.completed ? 'completed' : activity.category)}`}>
+                              {cat?.icon} {cat?.label}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 ml-2">
+                            <button
+                              onClick={() => setExpandedId(expandedId === activity.id ? null : activity.id)}
+                              className="p-1 text-zinc-500 hover:text-zinc-300"
+                            >
+                              {expandedId === activity.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-4 text-xs text-zinc-500 mb-3">
+                          {editingTimeId === activity.id ? (
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                value={tempTime}
+                                onChange={(e) => setTempTime(e.target.value)}
+                                className="w-20 bg-zinc-900 border border-sky-500 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none"
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') updateActivityTime(activity.id, tempTime);
+                                  if (e.key === 'Escape') { setEditingTimeId(null); setTempTime(''); }
+                                }}
+                              />
+                              <button onClick={() => updateActivityTime(activity.id, tempTime)} className="text-sky-400 hover:text-sky-300">
+                                <Check size={12} />
+                              </button>
+                              <button onClick={() => { setEditingTimeId(null); setTempTime(''); }} className="text-zinc-500 hover:text-zinc-300">
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => { setEditingTimeId(activity.id); setTempTime(activity.time || ''); }}
+                              className="flex items-center gap-1 hover:text-zinc-300"
+                            >
+                              <Clock size={11} />
+                              <span>{activity.time || 'Set time'}</span>
+                            </button>
+                          )}
+                          {activity.duration && (
+                            <span className="flex items-center gap-1">
+                              <span>⏱</span> {activity.duration}
+                            </span>
+                          )}
+                        </div>
+
+                        {activity.description && (
+                          <p className="text-xs text-zinc-400 mb-3 leading-relaxed">{activity.description}</p>
+                        )}
+
+                        <button
+                          onClick={() => toggleActivityDone(activity.id)}
+                          className={`w-full py-2 rounded text-xs font-medium transition-colors ${
+                            activity.completed
+                              ? 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                              : 'bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30'
+                          }`}
+                        >
+                          {activity.completed ? 'Mark as Undone' : '✓ Mark as Done'}
+                        </button>
+
+                        {expandedId === activity.id && (
+                          <div className="mt-3 pt-3 border-t border-zinc-700">
+                            <button
+                              onClick={() => removeActivity(activity.id)}
+                              className="text-xs text-red-400 hover:text-red-300"
+                            >
+                              Delete activity
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
     // Default table structure
     const createDefaultTable = (name = 'Table 1') => ({
@@ -4401,7 +5004,7 @@ export default function PromptRepository() {
               </div>
 
               {/* Note Content */}
-              <div className={`flex-1 overflow-hidden flex flex-col min-h-0 ${currentNote.type === 'book' ? '' : 'p-4'}`}>
+              <div className={`flex-1 overflow-hidden flex flex-col min-h-0 ${currentNote.type === 'book' || currentNote.type === 'travel' ? '' : 'p-4'}`}>
                 {currentNote.type === 'spreadsheet' ? (
                   <SpreadsheetEditor
                     note={currentNote}
@@ -4412,6 +5015,14 @@ export default function PromptRepository() {
                   />
                 ) : currentNote.type === 'book' ? (
                   <BookEditor
+                    key={currentNote.id}
+                    note={currentNote}
+                    onUpdate={(newContent) => {
+                      updateNote(currentNote.id, { content: newContent }, { silent: true });
+                    }}
+                  />
+                ) : currentNote.type === 'travel' ? (
+                  <TravelItineraryEditor
                     key={currentNote.id}
                     note={currentNote}
                     onUpdate={(newContent) => {
@@ -5074,6 +5685,7 @@ export default function PromptRepository() {
                       'Table': <Table size={20} className={isActive ? 'text-blue-400' : 'text-zinc-400'} />,
                       'Database': <Database size={20} className={isActive ? 'text-cyan-400' : 'text-zinc-400'} />,
                       'BookOpen': <BookOpen size={20} className={isActive ? 'text-amber-400' : 'text-zinc-400'} />,
+                      'Plane': <Plane size={20} className={isActive ? 'text-sky-400' : 'text-zinc-400'} />,
                     };
 
                     return (
@@ -5176,8 +5788,6 @@ export default function PromptRepository() {
                           <DollarSign size={18} className="text-green-400" />
                         ) : category.icon === 'Briefcase' ? (
                           <Briefcase size={18} className="text-amber-400" />
-                        ) : category.icon === 'Plane' ? (
-                          <Plane size={18} className="text-sky-400" />
                         ) : (
                           <Target size={18} className="text-blue-400" />
                         )}
