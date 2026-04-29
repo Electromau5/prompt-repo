@@ -2894,6 +2894,7 @@ export default function PromptRepository() {
     const [showVersionModal, setShowVersionModal] = useState(false); // Show save version modal
     const [versionName, setVersionName] = useState(''); // Version name input
     const [showVersionHistory, setShowVersionHistory] = useState(false); // Show version history dropdown
+    const [renamingVersion, setRenamingVersion] = useState(null); // { id, name } for renaming a version
 
     const saveData = (newData) => {
       setBookData(newData);
@@ -3147,6 +3148,31 @@ export default function PromptRepository() {
       saveData(newData);
     };
 
+    // Rename a saved version
+    const renameVersion = (versionId, newName) => {
+      if (!activeChapter || !newName.trim()) return;
+      const newData = {
+        ...bookData,
+        sections: bookData.sections.map(s => s.id === bookData.activeSectionId
+          ? {
+              ...s,
+              chapters: s.chapters.map(c => c.id === bookData.activeChapterId
+                ? {
+                    ...c,
+                    versions: (c.versions || []).map(v =>
+                      v.id === versionId ? { ...v, name: newName.trim() } : v
+                    )
+                  }
+                : c
+              )
+            }
+          : s
+        )
+      };
+      saveData(newData);
+      setRenamingVersion(null);
+    };
+
     // Get versions for active chapter
     const activeChapterVersions = activeChapter?.versions || [];
 
@@ -3377,11 +3403,39 @@ export default function PromptRepository() {
                             activeChapterVersions.slice().reverse().map(version => (
                               <div
                                 key={version.id}
-                                className="group px-3 py-2 hover:bg-zinc-700/50 border-b border-zinc-700/50 last:border-b-0"
+                                onClick={() => {
+                                  if (renamingVersion?.id !== version.id) {
+                                    loadVersion(version.id);
+                                  }
+                                }}
+                                className="group px-3 py-2 hover:bg-zinc-700/50 border-b border-zinc-700/50 last:border-b-0 cursor-pointer"
                               >
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-xs font-medium text-zinc-200 truncate">{version.name}</div>
+                                    {renamingVersion?.id === version.id ? (
+                                      <input
+                                        autoFocus
+                                        type="text"
+                                        value={renamingVersion.name}
+                                        onChange={(e) => setRenamingVersion({ ...renamingVersion, name: e.target.value })}
+                                        onKeyDown={(e) => {
+                                          e.stopPropagation();
+                                          if (e.key === 'Enter') renameVersion(version.id, renamingVersion.name);
+                                          if (e.key === 'Escape') setRenamingVersion(null);
+                                        }}
+                                        onBlur={() => {
+                                          if (renamingVersion.name.trim()) {
+                                            renameVersion(version.id, renamingVersion.name);
+                                          } else {
+                                            setRenamingVersion(null);
+                                          }
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="w-full bg-zinc-900 border border-amber-500 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none"
+                                      />
+                                    ) : (
+                                      <div className="text-xs font-medium text-zinc-200 truncate">{version.name}</div>
+                                    )}
                                     <div className="text-[10px] text-zinc-500 flex items-center gap-1 mt-0.5">
                                       <Clock size={9} />
                                       {new Date(version.savedAt).toLocaleString()}
@@ -3389,14 +3443,14 @@ export default function PromptRepository() {
                                   </div>
                                   <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
-                                      onClick={() => loadVersion(version.id)}
-                                      className="p-1 text-green-400 hover:text-green-300 hover:bg-zinc-600 rounded"
-                                      title="Restore this version"
+                                      onClick={(e) => { e.stopPropagation(); setRenamingVersion({ id: version.id, name: version.name }); }}
+                                      className="p-1 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-600 rounded"
+                                      title="Rename version"
                                     >
-                                      <RotateCcw size={11} />
+                                      <Edit2 size={11} />
                                     </button>
                                     <button
-                                      onClick={() => deleteVersion(version.id)}
+                                      onClick={(e) => { e.stopPropagation(); deleteVersion(version.id); }}
                                       className="p-1 text-red-400 hover:text-red-300 hover:bg-zinc-600 rounded"
                                       title="Delete this version"
                                     >
