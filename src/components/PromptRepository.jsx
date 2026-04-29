@@ -2893,8 +2893,9 @@ export default function PromptRepository() {
     const [dragOverTarget, setDragOverTarget] = useState(null); // { sectionId, index }
     const [showVersionModal, setShowVersionModal] = useState(false); // Show save version modal
     const [versionName, setVersionName] = useState(''); // Version name input
+    const [versionNameError, setVersionNameError] = useState(''); // Error for duplicate version names
     const [showVersionHistory, setShowVersionHistory] = useState(false); // Show version history dropdown
-    const [renamingVersion, setRenamingVersion] = useState(null); // { id, name } for renaming a version
+    const [renamingVersion, setRenamingVersion] = useState(null); // { id, name, error } for renaming a version
 
     const saveData = (newData) => {
       setBookData(newData);
@@ -3080,9 +3081,24 @@ export default function PromptRepository() {
       saveData({ ...bookData, sections: newSections, autoNumberChapters: turning_on });
     };
 
+    // Check if a version name already exists (for duplicates)
+    const versionNameExists = (name, excludeId = null) => {
+      const existingVersions = activeChapter?.versions || [];
+      return existingVersions.some(v =>
+        v.name.toLowerCase() === name.trim().toLowerCase() && v.id !== excludeId
+      );
+    };
+
     // Save current chapter content as a named version
     const saveVersion = (name) => {
       if (!activeChapter || !name.trim()) return;
+
+      // Check for duplicate name
+      if (versionNameExists(name)) {
+        setVersionNameError('A version with this name already exists');
+        return;
+      }
+
       const newVersion = {
         id: generateId(),
         name: name.trim(),
@@ -3105,6 +3121,7 @@ export default function PromptRepository() {
       saveData(newData);
       setShowVersionModal(false);
       setVersionName('');
+      setVersionNameError('');
     };
 
     // Load a saved version into the chapter (restore)
@@ -3150,7 +3167,17 @@ export default function PromptRepository() {
 
     // Rename a saved version
     const renameVersion = (versionId, newName) => {
-      if (!activeChapter || !newName.trim()) return;
+      if (!activeChapter || !newName.trim()) {
+        setRenamingVersion(null);
+        return;
+      }
+
+      // Check for duplicate name (excluding current version)
+      if (versionNameExists(newName, versionId)) {
+        setRenamingVersion(prev => ({ ...prev, error: 'A version with this name already exists' }));
+        return;
+      }
+
       const newData = {
         ...bookData,
         sections: bookData.sections.map(s => s.id === bookData.activeSectionId
@@ -3413,26 +3440,33 @@ export default function PromptRepository() {
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex-1 min-w-0">
                                     {renamingVersion?.id === version.id ? (
-                                      <input
-                                        autoFocus
-                                        type="text"
-                                        value={renamingVersion.name}
-                                        onChange={(e) => setRenamingVersion({ ...renamingVersion, name: e.target.value })}
-                                        onKeyDown={(e) => {
-                                          e.stopPropagation();
-                                          if (e.key === 'Enter') renameVersion(version.id, renamingVersion.name);
-                                          if (e.key === 'Escape') setRenamingVersion(null);
-                                        }}
-                                        onBlur={() => {
-                                          if (renamingVersion.name.trim()) {
-                                            renameVersion(version.id, renamingVersion.name);
-                                          } else {
-                                            setRenamingVersion(null);
-                                          }
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="w-full bg-zinc-900 border border-amber-500 rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none"
-                                      />
+                                      <>
+                                        <input
+                                          autoFocus
+                                          type="text"
+                                          value={renamingVersion.name}
+                                          onChange={(e) => setRenamingVersion({ ...renamingVersion, name: e.target.value, error: null })}
+                                          onKeyDown={(e) => {
+                                            e.stopPropagation();
+                                            if (e.key === 'Enter') renameVersion(version.id, renamingVersion.name);
+                                            if (e.key === 'Escape') setRenamingVersion(null);
+                                          }}
+                                          onBlur={() => {
+                                            if (renamingVersion.name.trim()) {
+                                              renameVersion(version.id, renamingVersion.name);
+                                            } else {
+                                              setRenamingVersion(null);
+                                            }
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`w-full bg-zinc-900 border rounded px-1.5 py-0.5 text-xs text-zinc-200 focus:outline-none ${
+                                            renamingVersion.error ? 'border-red-500' : 'border-amber-500'
+                                          }`}
+                                        />
+                                        {renamingVersion.error && (
+                                          <div className="text-[10px] text-red-400 mt-0.5">{renamingVersion.error}</div>
+                                        )}
+                                      </>
                                     ) : (
                                       <div className="text-xs font-medium text-zinc-200 truncate">{version.name}</div>
                                     )}
@@ -3483,11 +3517,11 @@ export default function PromptRepository() {
 
         {/* Save Version Modal */}
         {showVersionModal && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowVersionModal(false)}>
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => { setShowVersionModal(false); setVersionNameError(''); }}>
             <div className="bg-zinc-800 border border-zinc-700 rounded-lg shadow-2xl w-80" onClick={e => e.stopPropagation()}>
               <div className="px-4 py-3 border-b border-zinc-700 flex items-center justify-between">
                 <h3 className="text-sm font-medium text-zinc-200">Save Version</h3>
-                <button onClick={() => setShowVersionModal(false)} className="p-1 text-zinc-500 hover:text-white rounded">
+                <button onClick={() => { setShowVersionModal(false); setVersionNameError(''); }} className="p-1 text-zinc-500 hover:text-white rounded">
                   <X size={14} />
                 </button>
               </div>
@@ -3497,21 +3531,27 @@ export default function PromptRepository() {
                   autoFocus
                   type="text"
                   value={versionName}
-                  onChange={e => setVersionName(e.target.value)}
+                  onChange={e => { setVersionName(e.target.value); setVersionNameError(''); }}
                   onKeyDown={e => {
                     if (e.key === 'Enter' && versionName.trim()) saveVersion(versionName);
-                    if (e.key === 'Escape') { setShowVersionModal(false); setVersionName(''); }
+                    if (e.key === 'Escape') { setShowVersionModal(false); setVersionName(''); setVersionNameError(''); }
                   }}
                   placeholder="e.g., First Draft, After Review..."
-                  className="w-full bg-zinc-900 border border-zinc-600 rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  className={`w-full bg-zinc-900 border rounded px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none ${
+                    versionNameError ? 'border-red-500 focus:border-red-500' : 'border-zinc-600 focus:border-amber-500'
+                  }`}
                 />
-                <p className="text-[10px] text-zinc-500 mt-2">
-                  This will save a snapshot of the current chapter content.
-                </p>
+                {versionNameError ? (
+                  <p className="text-[10px] text-red-400 mt-2">{versionNameError}</p>
+                ) : (
+                  <p className="text-[10px] text-zinc-500 mt-2">
+                    This will save a snapshot of the current chapter content.
+                  </p>
+                )}
               </div>
               <div className="px-4 py-3 border-t border-zinc-700 flex justify-end gap-2">
                 <button
-                  onClick={() => { setShowVersionModal(false); setVersionName(''); }}
+                  onClick={() => { setShowVersionModal(false); setVersionName(''); setVersionNameError(''); }}
                   className="px-3 py-1.5 text-xs text-zinc-400 hover:text-white hover:bg-zinc-700 rounded transition-colors"
                 >
                   Cancel
