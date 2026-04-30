@@ -2938,13 +2938,14 @@ export default function PromptRepository() {
 
       let newSections;
       if (sourceSectionId === targetSectionId) {
-        // Reorder within the same section
+        // Reorder within the same section - swap-style: move to target position
         const section = bookData.sections.find(s => s.id === sourceSectionId);
         const chapters = [...section.chapters];
         const fromIndex = chapters.findIndex(c => c.id === chapterId);
-        if (fromIndex === targetIndex || fromIndex === -1) { setDraggingChapter(null); return; }
+        if (fromIndex === -1 || fromIndex === targetIndex) { setDraggingChapter(null); return; }
+        // Remove chapter from its original position and insert at target position
         const [moved] = chapters.splice(fromIndex, 1);
-        chapters.splice(targetIndex > fromIndex ? targetIndex - 1 : targetIndex, 0, moved);
+        chapters.splice(targetIndex, 0, moved);
         newSections = bookData.sections.map(s => s.id === sourceSectionId ? { ...s, chapters } : s);
       } else {
         // Move across sections
@@ -3270,12 +3271,12 @@ export default function PromptRepository() {
                         onDragOver={(e) => handleChapterDragOver(e, section.id, chapterIndex)}
                         onDrop={(e) => handleChapterDrop(e, section.id, chapterIndex)}
                         className={`group flex items-center gap-1 pl-4 pr-2 py-1 cursor-grab active:cursor-grabbing hover:bg-zinc-800 ${
-                          bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id
-                            ? 'bg-zinc-800 text-white'
-                            : draggingChapter?.chapterId === chapter.id
-                              ? 'opacity-40'
-                              : dragOverTarget?.sectionId === section.id && dragOverTarget?.index === chapterIndex && draggingChapter
-                                ? 'border-t border-t-amber-500'
+                          draggingChapter?.chapterId === chapter.id
+                            ? 'opacity-40 bg-zinc-700'
+                            : dragOverTarget?.sectionId === section.id && dragOverTarget?.index === chapterIndex && draggingChapter && draggingChapter.chapterId !== chapter.id
+                              ? 'bg-amber-500/20 ring-1 ring-amber-500'
+                              : bookData.activeChapterId === chapter.id && bookData.activeSectionId === section.id
+                                ? 'bg-zinc-800 text-white'
                                 : 'text-zinc-500'
                         }`}
                         onClick={() => selectChapter(section.id, chapter.id)}
