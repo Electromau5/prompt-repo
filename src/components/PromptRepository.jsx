@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, ChevronUp, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw, Plane, MapPin } from 'lucide-react';
+import { Search, Plus, FolderPlus, Copy, Check, ChevronRight, ChevronDown, ChevronUp, Edit2, Trash2, X, Tag, Download, Upload, Folder, FileText, Save, Move, LayoutGrid, List, ChevronsDownUp, ChevronsUpDown, GitMerge, ArrowUpDown, Menu, PanelLeftClose, BookOpen, Notebook, ChevronLeft, Table, Minus, MessageSquare, Calendar, Clock, Type, MoreVertical, GripVertical, Heart, DollarSign, Target, Briefcase, Hash, Database, FolderSymlink, History, RotateCcw, Plane, MapPin, Clapperboard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { defaultData as initialDefaultData } from '../data/defaultFolders';
 
@@ -247,7 +247,8 @@ export default function PromptRepository() {
       { id: 'filepath', name: 'Filepath', icon: 'FolderSymlink', description: 'Store file and folder paths for quick access' }
     ]},
     { id: 'book', name: 'Book', icon: 'BookOpen', description: 'Organize content into sections and chapters' },
-    { id: 'travel', name: 'Travel Itinerary', icon: 'Plane', description: 'Plan trips with dates, travelers, and activities' }
+    { id: 'travel', name: 'Travel Itinerary', icon: 'Plane', description: 'Plan trips with dates, travelers, and activities' },
+    { id: 'tiktok', name: 'TikTok Scripts', icon: 'Clapperboard', description: 'Manage video scripts with hooks, CTAs, and hashtags' }
   ];
 
   // Spreadsheet template categories and templates
@@ -4370,6 +4371,474 @@ export default function PromptRepository() {
     );
   };
 
+  // TikTok Scripts Editor Component
+  const TikTokScriptsEditor = ({ note, onUpdate }) => {
+    const parseScriptsData = (content) => {
+      try {
+        const parsed = JSON.parse(content);
+        if (parsed.scripts && Array.isArray(parsed.scripts)) {
+          return parsed;
+        }
+      } catch {}
+      const scriptId = generateId();
+      return {
+        scripts: [{
+          id: scriptId,
+          title: 'Untitled Script',
+          hook: '',
+          content: '',
+          cta: '',
+          hashtags: [],
+          status: 'draft',
+          duration: '',
+          notes: ''
+        }],
+        activeScriptId: scriptId
+      };
+    };
+
+    const [scriptsData, setScriptsData] = useState(() => parseScriptsData(note.content));
+    const [renamingScript, setRenamingScript] = useState(null);
+    const [draggingScript, setDraggingScript] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
+    const [hashtagInput, setHashtagInput] = useState('');
+
+    // Undo/Redo system
+    const [undoStack, setUndoStack] = useState({});
+    const [redoStack, setRedoStack] = useState({});
+    const lastContentRef = useRef({});
+    const debounceTimerRef = useRef(null);
+    const textareaRef = useRef(null);
+
+    const saveData = (newData) => {
+      setScriptsData(newData);
+      onUpdate(JSON.stringify(newData));
+    };
+
+    const activeScript = scriptsData.scripts.find(s => s.id === scriptsData.activeScriptId);
+
+    const selectScript = (scriptId) => {
+      saveData({ ...scriptsData, activeScriptId: scriptId });
+    };
+
+    const addScript = () => {
+      const newId = generateId();
+      const newScript = {
+        id: newId,
+        title: `Script ${scriptsData.scripts.length + 1}`,
+        hook: '',
+        content: '',
+        cta: '',
+        hashtags: [],
+        status: 'draft',
+        duration: '',
+        notes: ''
+      };
+      saveData({
+        ...scriptsData,
+        scripts: [...scriptsData.scripts, newScript],
+        activeScriptId: newId
+      });
+    };
+
+    const deleteScript = (scriptId) => {
+      if (scriptsData.scripts.length <= 1) return;
+      const remaining = scriptsData.scripts.filter(s => s.id !== scriptId);
+      const newActiveId = scriptsData.activeScriptId === scriptId
+        ? remaining[0].id
+        : scriptsData.activeScriptId;
+      saveData({ ...scriptsData, scripts: remaining, activeScriptId: newActiveId });
+    };
+
+    const updateScript = (field, value, isUndoRedo = false) => {
+      const scriptId = scriptsData.activeScriptId;
+
+      // Push to undo stack with debouncing for content field
+      if (!isUndoRedo && scriptId && field === 'content') {
+        const currentContent = activeScript?.content || '';
+
+        if (lastContentRef.current[scriptId] === undefined) {
+          lastContentRef.current[scriptId] = currentContent;
+        }
+
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+
+        debounceTimerRef.current = setTimeout(() => {
+          const lastContent = lastContentRef.current[scriptId];
+          if (lastContent !== value) {
+            setUndoStack(prev => ({
+              ...prev,
+              [scriptId]: [...(prev[scriptId] || []), lastContent].slice(-50)
+            }));
+            setRedoStack(prev => ({ ...prev, [scriptId]: [] }));
+            lastContentRef.current[scriptId] = value;
+          }
+        }, 500);
+      }
+
+      const newData = {
+        ...scriptsData,
+        scripts: scriptsData.scripts.map(s =>
+          s.id === scriptsData.activeScriptId ? { ...s, [field]: value } : s
+        )
+      };
+      saveData(newData);
+    };
+
+    const undo = () => {
+      const scriptId = scriptsData.activeScriptId;
+      if (!scriptId) return;
+      const stack = undoStack[scriptId] || [];
+      if (stack.length === 0) return;
+
+      const currentContent = activeScript?.content || '';
+      const previousContent = stack[stack.length - 1];
+
+      setRedoStack(prev => ({
+        ...prev,
+        [scriptId]: [...(prev[scriptId] || []), currentContent]
+      }));
+      setUndoStack(prev => ({
+        ...prev,
+        [scriptId]: stack.slice(0, -1)
+      }));
+      lastContentRef.current[scriptId] = previousContent;
+      updateScript('content', previousContent, true);
+    };
+
+    const redo = () => {
+      const scriptId = scriptsData.activeScriptId;
+      if (!scriptId) return;
+      const stack = redoStack[scriptId] || [];
+      if (stack.length === 0) return;
+
+      const currentContent = activeScript?.content || '';
+      const nextContent = stack[stack.length - 1];
+
+      setUndoStack(prev => ({
+        ...prev,
+        [scriptId]: [...(prev[scriptId] || []), currentContent]
+      }));
+      setRedoStack(prev => ({
+        ...prev,
+        [scriptId]: stack.slice(0, -1)
+      }));
+      lastContentRef.current[scriptId] = nextContent;
+      updateScript('content', nextContent, true);
+    };
+
+    useEffect(() => {
+      const handleKeyDown = (e) => {
+        if (textareaRef.current && document.activeElement === textareaRef.current) {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+          }
+          if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+            e.preventDefault();
+            redo();
+          }
+        }
+      };
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [scriptsData, undoStack, redoStack]);
+
+    const commitRename = () => {
+      if (!renamingScript) return;
+      if (renamingScript.title.trim()) {
+        saveData({
+          ...scriptsData,
+          scripts: scriptsData.scripts.map(s =>
+            s.id === renamingScript.id ? { ...s, title: renamingScript.title.trim() } : s
+          )
+        });
+      }
+      setRenamingScript(null);
+    };
+
+    const addHashtag = () => {
+      if (!hashtagInput.trim() || !activeScript) return;
+      const tag = hashtagInput.trim().replace(/^#/, '');
+      if (!activeScript.hashtags.includes(tag)) {
+        updateScript('hashtags', [...activeScript.hashtags, tag]);
+      }
+      setHashtagInput('');
+    };
+
+    const removeHashtag = (tag) => {
+      if (!activeScript) return;
+      updateScript('hashtags', activeScript.hashtags.filter(t => t !== tag));
+    };
+
+    // Drag and drop handlers
+    const handleDragStart = (e, scriptId) => {
+      setDraggingScript(scriptId);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', scriptId);
+      e.target.style.opacity = '0.4';
+    };
+
+    const handleDragEnd = (e) => {
+      e.target.style.opacity = '1';
+      setDraggingScript(null);
+      setDragOverIndex(null);
+    };
+
+    const handleDragOver = (e, index) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      if (draggingScript) {
+        setDragOverIndex(index);
+      }
+    };
+
+    const handleDrop = (e, targetIndex) => {
+      e.preventDefault();
+      setDragOverIndex(null);
+      if (!draggingScript) return;
+
+      const fromIndex = scriptsData.scripts.findIndex(s => s.id === draggingScript);
+      if (fromIndex === -1 || fromIndex === targetIndex) {
+        setDraggingScript(null);
+        return;
+      }
+
+      const scripts = [...scriptsData.scripts];
+      const [moved] = scripts.splice(fromIndex, 1);
+      scripts.splice(targetIndex, 0, moved);
+      saveData({ ...scriptsData, scripts });
+      setDraggingScript(null);
+    };
+
+    const statusOptions = [
+      { id: 'draft', label: 'Draft', color: 'bg-zinc-600' },
+      { id: 'final', label: 'Final', color: 'bg-blue-600' },
+      { id: 'posted', label: 'Posted', color: 'bg-green-600' }
+    ];
+
+    const getStatusStyle = (status) => {
+      const opt = statusOptions.find(o => o.id === status);
+      return opt?.color || 'bg-zinc-600';
+    };
+
+    return (
+      <div className="flex h-full bg-zinc-900 rounded-lg overflow-hidden">
+        {/* Left panel: Script list */}
+        <div className="w-64 bg-zinc-900 border-r border-zinc-700 flex flex-col min-h-0">
+          <div className="p-3 border-b border-zinc-700 flex items-center justify-between">
+            <span className="text-sm font-medium text-zinc-300 flex items-center gap-2">
+              <Clapperboard size={14} className="text-pink-400" />
+              Scripts
+            </span>
+            <button
+              onClick={addScript}
+              className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+              title="Add script"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
+            {scriptsData.scripts.map((script, index) => (
+              <div
+                key={script.id}
+                draggable={!renamingScript || renamingScript.id !== script.id}
+                onDragStart={(e) => handleDragStart(e, script.id)}
+                onDragEnd={handleDragEnd}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+                onClick={() => selectScript(script.id)}
+                className={`group flex items-center gap-2 px-3 py-2 cursor-grab active:cursor-grabbing ${
+                  draggingScript === script.id
+                    ? 'opacity-40 bg-zinc-700'
+                    : dragOverIndex === index && draggingScript && draggingScript !== script.id
+                      ? 'bg-pink-500/20 ring-1 ring-pink-500'
+                      : scriptsData.activeScriptId === script.id
+                        ? 'bg-zinc-800 text-white'
+                        : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'
+                }`}
+              >
+                <GripVertical size={12} className="text-zinc-600 flex-shrink-0" />
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusStyle(script.status)}`} />
+                {renamingScript?.id === script.id ? (
+                  <input
+                    autoFocus
+                    value={renamingScript.title}
+                    onChange={e => setRenamingScript(prev => ({ ...prev, title: e.target.value }))}
+                    onKeyDown={e => { e.stopPropagation(); if (e.key === 'Enter') commitRename(); if (e.key === 'Escape') setRenamingScript(null); }}
+                    onBlur={commitRename}
+                    onClick={e => e.stopPropagation()}
+                    className="flex-1 bg-zinc-700 rounded px-1 text-xs text-white focus:outline-none"
+                  />
+                ) : (
+                  <span className="flex-1 text-xs truncate">{script.title}</span>
+                )}
+                {(!renamingScript || renamingScript.id !== script.id) && (
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 flex-shrink-0">
+                    <button
+                      onClick={e => { e.stopPropagation(); setRenamingScript({ id: script.id, title: script.title }); }}
+                      className="p-0.5 hover:text-white"
+                      title="Rename"
+                    >
+                      <Edit2 size={10} />
+                    </button>
+                    {scriptsData.scripts.length > 1 && (
+                      <button
+                        onClick={e => { e.stopPropagation(); deleteScript(script.id); }}
+                        className="p-0.5 hover:text-red-400"
+                        title="Delete"
+                      >
+                        <Trash2 size={10} />
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {/* Drop zone at end */}
+            {draggingScript && (
+              <div
+                onDragOver={(e) => handleDragOver(e, scriptsData.scripts.length)}
+                onDrop={(e) => handleDrop(e, scriptsData.scripts.length)}
+                className={`h-4 mx-2 rounded transition-colors ${
+                  dragOverIndex === scriptsData.scripts.length
+                    ? 'bg-pink-500/20 border border-dashed border-pink-500'
+                    : ''
+                }`}
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Right panel: Script editor */}
+        <div className="flex-1 flex flex-col min-h-0 min-w-0">
+          {activeScript ? (
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              {/* Header with title and status */}
+              <div className="flex items-center gap-4">
+                <h2 className="text-lg font-semibold text-zinc-200 flex-1">{activeScript.title}</h2>
+                <select
+                  value={activeScript.status}
+                  onChange={e => updateScript('status', e.target.value)}
+                  className={`px-3 py-1.5 rounded text-xs font-medium text-white focus:outline-none cursor-pointer ${getStatusStyle(activeScript.status)}`}
+                >
+                  {statusOptions.map(opt => (
+                    <option key={opt.id} value={opt.id} className="bg-zinc-800">{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Duration */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Estimated Duration</label>
+                <input
+                  type="text"
+                  value={activeScript.duration}
+                  onChange={e => updateScript('duration', e.target.value)}
+                  placeholder="e.g., 30 sec, 1 min"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              {/* Hook */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Hook (Opening Line)</label>
+                <input
+                  type="text"
+                  value={activeScript.hook}
+                  onChange={e => updateScript('hook', e.target.value)}
+                  placeholder="The attention-grabbing first line..."
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              {/* Main Script Content */}
+              <div className="flex-1">
+                <label className="block text-xs text-zinc-500 mb-1">Script Content</label>
+                <textarea
+                  ref={textareaRef}
+                  value={activeScript.content}
+                  onChange={e => updateScript('content', e.target.value)}
+                  placeholder="Write your script here..."
+                  className="w-full h-48 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
+                />
+              </div>
+
+              {/* Call to Action */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Call to Action (CTA)</label>
+                <input
+                  type="text"
+                  value={activeScript.cta}
+                  onChange={e => updateScript('cta', e.target.value)}
+                  placeholder="e.g., Follow for more tips!, Link in bio"
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                />
+              </div>
+
+              {/* Hashtags */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Hashtags</label>
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {(activeScript.hashtags || []).map(tag => (
+                    <span
+                      key={tag}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-pink-500/20 text-pink-300 rounded text-xs"
+                    >
+                      #{tag}
+                      <button onClick={() => removeHashtag(tag)} className="hover:text-white">
+                        <X size={10} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={hashtagInput}
+                    onChange={e => setHashtagInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addHashtag(); } }}
+                    placeholder="Add hashtag..."
+                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
+                  />
+                  <button
+                    onClick={addHashtag}
+                    disabled={!hashtagInput.trim()}
+                    className="px-3 py-2 bg-pink-600 hover:bg-pink-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-lg text-sm text-white transition-colors"
+                  >
+                    Add
+                  </button>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div>
+                <label className="block text-xs text-zinc-500 mb-1">Notes</label>
+                <textarea
+                  value={activeScript.notes}
+                  onChange={e => updateScript('notes', e.target.value)}
+                  placeholder="Additional notes, filming ideas, props needed..."
+                  className="w-full h-20 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-zinc-600">
+              <p className="text-sm">Select a script to start editing</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
     // Default table structure
     const createDefaultTable = (name = 'Table 1') => ({
@@ -5099,6 +5568,8 @@ export default function PromptRepository() {
                         <Table size={14} className="text-green-500 flex-shrink-0" />
                       ) : note.type === 'book' ? (
                         <BookOpen size={14} className="text-amber-400 flex-shrink-0" />
+                      ) : note.type === 'tiktok' ? (
+                        <Clapperboard size={14} className="text-pink-400 flex-shrink-0" />
                       ) : note.type === 'prompt' || note.template === 'prompt' ? (
                         <MessageSquare size={14} className="text-purple-500 flex-shrink-0" />
                       ) : (
@@ -5109,6 +5580,8 @@ export default function PromptRepository() {
                     <div className={`text-xs text-zinc-500 mt-1 line-clamp-2 ${isBookNotebook ? 'ml-10' : 'ml-8'}`}>
                       {note.type === 'spreadsheet' ? (
                         <span className="text-green-500/70">Spreadsheet</span>
+                      ) : note.type === 'tiktok' ? (
+                        <span className="text-pink-400/70">TikTok Scripts</span>
                       ) : isBookNotebook ? (
                         <span className="text-amber-500/50">Chapter {index + 1}</span>
                       ) : (
@@ -5258,6 +5731,14 @@ export default function PromptRepository() {
                   />
                 ) : currentNote.type === 'travel' ? (
                   <TravelItineraryEditor
+                    key={currentNote.id}
+                    note={currentNote}
+                    onUpdate={(newContent) => {
+                      updateNote(currentNote.id, { content: newContent }, { silent: true });
+                    }}
+                  />
+                ) : currentNote.type === 'tiktok' ? (
+                  <TikTokScriptsEditor
                     key={currentNote.id}
                     note={currentNote}
                     onUpdate={(newContent) => {
@@ -5921,6 +6402,7 @@ export default function PromptRepository() {
                       'Database': <Database size={20} className={isActive ? 'text-cyan-400' : 'text-zinc-400'} />,
                       'BookOpen': <BookOpen size={20} className={isActive ? 'text-amber-400' : 'text-zinc-400'} />,
                       'Plane': <Plane size={20} className={isActive ? 'text-sky-400' : 'text-zinc-400'} />,
+                      'Clapperboard': <Clapperboard size={20} className={isActive ? 'text-pink-400' : 'text-zinc-400'} />,
                     };
 
                     return (
