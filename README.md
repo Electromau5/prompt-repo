@@ -47,16 +47,11 @@ Plan trips with a card-based interface:
   - Activity descriptions and durations
 
 #### TikTok Scripts
-Manage video scripts with a comprehensive editor:
+Manage TikTok video scripts with one-click copy:
 - **Script Library**: Organize multiple scripts with drag-and-drop reordering
-- **Status Tracking**: Mark scripts as Draft, Final, or Posted
-- **Script Components**:
-  - Hook (attention-grabbing opening line)
-  - Main script content with undo/redo support
-  - Call-to-action (CTA)
-  - Hashtag management
-  - Estimated duration
-  - Notes for filming ideas and props
+- **Single Text Area**: Paste your full post (title, description, hashtags, everything)
+- **One-Click Copy**: Copy entire content to clipboard for pasting into TikTok
+- **Undo/Redo Support**: CMD+Z / CMD+SHIFT+Z for editing
 
 ### Additional Features
 - Hierarchical folder organization for prompts

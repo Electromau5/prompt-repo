@@ -4377,22 +4377,20 @@ export default function PromptRepository() {
       try {
         const parsed = JSON.parse(content);
         if (parsed.scripts && Array.isArray(parsed.scripts)) {
-          return parsed;
+          // Migrate old format to new simplified format
+          return {
+            scripts: parsed.scripts.map(s => ({
+              id: s.id,
+              title: s.title || 'Untitled Script',
+              content: s.content || ''
+            })),
+            activeScriptId: parsed.activeScriptId
+          };
         }
       } catch {}
       const scriptId = generateId();
       return {
-        scripts: [{
-          id: scriptId,
-          title: 'Untitled Script',
-          hook: '',
-          content: '',
-          cta: '',
-          hashtags: [],
-          status: 'draft',
-          duration: '',
-          notes: ''
-        }],
+        scripts: [{ id: scriptId, title: 'Untitled Script', content: '' }],
         activeScriptId: scriptId
       };
     };
@@ -4401,7 +4399,7 @@ export default function PromptRepository() {
     const [renamingScript, setRenamingScript] = useState(null);
     const [draggingScript, setDraggingScript] = useState(null);
     const [dragOverIndex, setDragOverIndex] = useState(null);
-    const [hashtagInput, setHashtagInput] = useState('');
+    const [copied, setCopied] = useState(false);
 
     // Undo/Redo system
     const [undoStack, setUndoStack] = useState({});
@@ -4426,13 +4424,7 @@ export default function PromptRepository() {
       const newScript = {
         id: newId,
         title: `Script ${scriptsData.scripts.length + 1}`,
-        hook: '',
-        content: '',
-        cta: '',
-        hashtags: [],
-        status: 'draft',
-        duration: '',
-        notes: ''
+        content: ''
       };
       saveData({
         ...scriptsData,
@@ -4450,11 +4442,11 @@ export default function PromptRepository() {
       saveData({ ...scriptsData, scripts: remaining, activeScriptId: newActiveId });
     };
 
-    const updateScript = (field, value, isUndoRedo = false) => {
+    const updateContent = (value, isUndoRedo = false) => {
       const scriptId = scriptsData.activeScriptId;
 
-      // Push to undo stack with debouncing for content field
-      if (!isUndoRedo && scriptId && field === 'content') {
+      // Push to undo stack with debouncing
+      if (!isUndoRedo && scriptId) {
         const currentContent = activeScript?.content || '';
 
         if (lastContentRef.current[scriptId] === undefined) {
@@ -4481,7 +4473,7 @@ export default function PromptRepository() {
       const newData = {
         ...scriptsData,
         scripts: scriptsData.scripts.map(s =>
-          s.id === scriptsData.activeScriptId ? { ...s, [field]: value } : s
+          s.id === scriptsData.activeScriptId ? { ...s, content: value } : s
         )
       };
       saveData(newData);
@@ -4505,7 +4497,7 @@ export default function PromptRepository() {
         [scriptId]: stack.slice(0, -1)
       }));
       lastContentRef.current[scriptId] = previousContent;
-      updateScript('content', previousContent, true);
+      updateContent(previousContent, true);
     };
 
     const redo = () => {
@@ -4526,7 +4518,7 @@ export default function PromptRepository() {
         [scriptId]: stack.slice(0, -1)
       }));
       lastContentRef.current[scriptId] = nextContent;
-      updateScript('content', nextContent, true);
+      updateContent(nextContent, true);
     };
 
     useEffect(() => {
@@ -4563,18 +4555,20 @@ export default function PromptRepository() {
       setRenamingScript(null);
     };
 
-    const addHashtag = () => {
-      if (!hashtagInput.trim() || !activeScript) return;
-      const tag = hashtagInput.trim().replace(/^#/, '');
-      if (!activeScript.hashtags.includes(tag)) {
-        updateScript('hashtags', [...activeScript.hashtags, tag]);
-      }
-      setHashtagInput('');
-    };
-
-    const removeHashtag = (tag) => {
-      if (!activeScript) return;
-      updateScript('hashtags', activeScript.hashtags.filter(t => t !== tag));
+    const copyToClipboard = () => {
+      if (!activeScript?.content) return;
+      const textArea = document.createElement('textarea');
+      textArea.value = activeScript.content;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-999999px';
+      textArea.style.top = '-999999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textArea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     };
 
     // Drag and drop handlers
@@ -4617,21 +4611,10 @@ export default function PromptRepository() {
       setDraggingScript(null);
     };
 
-    const statusOptions = [
-      { id: 'draft', label: 'Draft', color: 'bg-zinc-600' },
-      { id: 'final', label: 'Final', color: 'bg-blue-600' },
-      { id: 'posted', label: 'Posted', color: 'bg-green-600' }
-    ];
-
-    const getStatusStyle = (status) => {
-      const opt = statusOptions.find(o => o.id === status);
-      return opt?.color || 'bg-zinc-600';
-    };
-
     return (
       <div className="flex h-full bg-zinc-900 rounded-lg overflow-hidden">
         {/* Left panel: Script list */}
-        <div className="w-64 bg-zinc-900 border-r border-zinc-700 flex flex-col min-h-0">
+        <div className="w-56 bg-zinc-900 border-r border-zinc-700 flex flex-col min-h-0">
           <div className="p-3 border-b border-zinc-700 flex items-center justify-between">
             <span className="text-sm font-medium text-zinc-300 flex items-center gap-2">
               <Clapperboard size={14} className="text-pink-400" />
@@ -4666,7 +4649,6 @@ export default function PromptRepository() {
                 }`}
               >
                 <GripVertical size={12} className="text-zinc-600 flex-shrink-0" />
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${getStatusStyle(script.status)}`} />
                 {renamingScript?.id === script.id ? (
                   <input
                     autoFocus
@@ -4720,115 +4702,43 @@ export default function PromptRepository() {
         {/* Right panel: Script editor */}
         <div className="flex-1 flex flex-col min-h-0 min-w-0">
           {activeScript ? (
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Header with title and status */}
-              <div className="flex items-center gap-4">
-                <h2 className="text-lg font-semibold text-zinc-200 flex-1">{activeScript.title}</h2>
-                <select
-                  value={activeScript.status}
-                  onChange={e => updateScript('status', e.target.value)}
-                  className={`px-3 py-1.5 rounded text-xs font-medium text-white focus:outline-none cursor-pointer ${getStatusStyle(activeScript.status)}`}
+            <>
+              {/* Header with title and copy button */}
+              <div className="flex items-center justify-between p-4 border-b border-zinc-700">
+                <h2 className="text-lg font-semibold text-zinc-200">{activeScript.title}</h2>
+                <button
+                  onClick={copyToClipboard}
+                  disabled={!activeScript.content}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    copied
+                      ? 'bg-green-600 text-white'
+                      : activeScript.content
+                        ? 'bg-pink-600 hover:bg-pink-700 text-white'
+                        : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                  }`}
                 >
-                  {statusOptions.map(opt => (
-                    <option key={opt.id} value={opt.id} className="bg-zinc-800">{opt.label}</option>
-                  ))}
-                </select>
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
+                  {copied ? 'Copied!' : 'Copy to TikTok'}
+                </button>
               </div>
 
-              {/* Duration */}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">Estimated Duration</label>
-                <input
-                  type="text"
-                  value={activeScript.duration}
-                  onChange={e => updateScript('duration', e.target.value)}
-                  placeholder="e.g., 30 sec, 1 min"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
-                />
-              </div>
-
-              {/* Hook */}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">Hook (Opening Line)</label>
-                <input
-                  type="text"
-                  value={activeScript.hook}
-                  onChange={e => updateScript('hook', e.target.value)}
-                  placeholder="The attention-grabbing first line..."
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
-                />
-              </div>
-
-              {/* Main Script Content */}
-              <div className="flex-1">
-                <label className="block text-xs text-zinc-500 mb-1">Script Content</label>
+              {/* Large text area */}
+              <div className="flex-1 p-4">
                 <textarea
                   ref={textareaRef}
                   value={activeScript.content}
-                  onChange={e => updateScript('content', e.target.value)}
-                  placeholder="Write your script here..."
-                  className="w-full h-48 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
+                  onChange={e => updateContent(e.target.value)}
+                  placeholder="Paste your full TikTok post here...
+
+Include everything:
+• Title / Caption
+• Description
+• Hashtags
+• Any other text you want to copy"
+                  className="w-full h-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none leading-relaxed"
                 />
               </div>
-
-              {/* Call to Action */}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">Call to Action (CTA)</label>
-                <input
-                  type="text"
-                  value={activeScript.cta}
-                  onChange={e => updateScript('cta', e.target.value)}
-                  placeholder="e.g., Follow for more tips!, Link in bio"
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
-                />
-              </div>
-
-              {/* Hashtags */}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">Hashtags</label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {(activeScript.hashtags || []).map(tag => (
-                    <span
-                      key={tag}
-                      className="inline-flex items-center gap-1 px-2 py-0.5 bg-pink-500/20 text-pink-300 rounded text-xs"
-                    >
-                      #{tag}
-                      <button onClick={() => removeHashtag(tag)} className="hover:text-white">
-                        <X size={10} />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={hashtagInput}
-                    onChange={e => setHashtagInput(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addHashtag(); } }}
-                    placeholder="Add hashtag..."
-                    className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500"
-                  />
-                  <button
-                    onClick={addHashtag}
-                    disabled={!hashtagInput.trim()}
-                    className="px-3 py-2 bg-pink-600 hover:bg-pink-700 disabled:bg-zinc-700 disabled:text-zinc-500 rounded-lg text-sm text-white transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div>
-                <label className="block text-xs text-zinc-500 mb-1">Notes</label>
-                <textarea
-                  value={activeScript.notes}
-                  onChange={e => updateScript('notes', e.target.value)}
-                  placeholder="Additional notes, filming ideas, props needed..."
-                  className="w-full h-20 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-pink-500 resize-none"
-                />
-              </div>
-            </div>
+            </>
           ) : (
             <div className="flex-1 flex items-center justify-center text-zinc-600">
               <p className="text-sm">Select a script to start editing</p>
