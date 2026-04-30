@@ -2897,6 +2897,13 @@ export default function PromptRepository() {
     const [showVersionHistory, setShowVersionHistory] = useState(false); // Show version history dropdown
     const [renamingVersion, setRenamingVersion] = useState(null); // { id, name, error } for renaming a version
 
+    // Undo/Redo system for chapter content
+    const [undoStack, setUndoStack] = useState({}); // { [chapterId]: string[] }
+    const [redoStack, setRedoStack] = useState({}); // { [chapterId]: string[] }
+    const lastContentRef = useRef({}); // { [chapterId]: string } - tracks last pushed content
+    const debounceTimerRef = useRef(null);
+    const textareaRef = useRef(null);
+
     const saveData = (newData) => {
       setBookData(newData);
       onUpdate(JSON.stringify(newData));
@@ -3023,7 +3030,37 @@ export default function PromptRepository() {
       saveData(newData);
     };
 
-    const updateChapterContent = (content) => {
+    const updateChapterContent = (content, isUndoRedo = false) => {
+      const chapterId = bookData.activeChapterId;
+
+      // Push to undo stack with debouncing (only for regular edits, not undo/redo)
+      if (!isUndoRedo && chapterId) {
+        const currentContent = activeChapter?.content || '';
+
+        // Initialize last content tracking if needed
+        if (lastContentRef.current[chapterId] === undefined) {
+          lastContentRef.current[chapterId] = currentContent;
+        }
+
+        // Clear existing debounce timer
+        if (debounceTimerRef.current) {
+          clearTimeout(debounceTimerRef.current);
+        }
+
+        // Debounce pushing to undo stack (push after 500ms of no typing)
+        debounceTimerRef.current = setTimeout(() => {
+          const lastContent = lastContentRef.current[chapterId];
+          if (lastContent !== content) {
+            setUndoStack(prev => ({
+              ...prev,
+              [chapterId]: [...(prev[chapterId] || []), lastContent].slice(-50) // Keep last 50 states
+            }));
+            setRedoStack(prev => ({ ...prev, [chapterId]: [] })); // Clear redo on new edit
+            lastContentRef.current[chapterId] = content;
+          }
+        }, 500);
+      }
+
       const newData = {
         ...bookData,
         sections: bookData.sections.map(s => s.id === bookData.activeSectionId
@@ -3033,6 +3070,89 @@ export default function PromptRepository() {
       };
       saveData(newData);
     };
+
+    const undo = () => {
+      const chapterId = bookData.activeChapterId;
+      if (!chapterId) return;
+
+      const stack = undoStack[chapterId] || [];
+      if (stack.length === 0) return;
+
+      const currentContent = activeChapter?.content || '';
+      const previousContent = stack[stack.length - 1];
+
+      // Move current state to redo stack
+      setRedoStack(prev => ({
+        ...prev,
+        [chapterId]: [...(prev[chapterId] || []), currentContent]
+      }));
+
+      // Pop from undo stack
+      setUndoStack(prev => ({
+        ...prev,
+        [chapterId]: stack.slice(0, -1)
+      }));
+
+      // Update last content ref
+      lastContentRef.current[chapterId] = previousContent;
+
+      // Apply the previous content
+      updateChapterContent(previousContent, true);
+    };
+
+    const redo = () => {
+      const chapterId = bookData.activeChapterId;
+      if (!chapterId) return;
+
+      const stack = redoStack[chapterId] || [];
+      if (stack.length === 0) return;
+
+      const currentContent = activeChapter?.content || '';
+      const nextContent = stack[stack.length - 1];
+
+      // Move current state to undo stack
+      setUndoStack(prev => ({
+        ...prev,
+        [chapterId]: [...(prev[chapterId] || []), currentContent]
+      }));
+
+      // Pop from redo stack
+      setRedoStack(prev => ({
+        ...prev,
+        [chapterId]: stack.slice(0, -1)
+      }));
+
+      // Update last content ref
+      lastContentRef.current[chapterId] = nextContent;
+
+      // Apply the next content
+      updateChapterContent(nextContent, true);
+    };
+
+    // Handle undo/redo keyboard shortcuts
+    useEffect(() => {
+      const handleKeyDown = (e) => {
+        // Check if the textarea is focused
+        if (textareaRef.current && document.activeElement === textareaRef.current) {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) {
+              redo();
+            } else {
+              undo();
+            }
+          }
+          // Also handle Cmd+Y / Ctrl+Y for redo
+          if ((e.metaKey || e.ctrlKey) && e.key === 'y') {
+            e.preventDefault();
+            redo();
+          }
+        }
+      };
+
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [bookData, undoStack, redoStack]);
 
     const commitSectionRename = () => {
       if (!renamingSection) return;
@@ -3503,6 +3623,7 @@ export default function PromptRepository() {
                 </div>
               </div>
               <textarea
+                ref={textareaRef}
                 className="flex-1 bg-transparent p-4 text-sm text-zinc-200 resize-none focus:outline-none leading-relaxed placeholder-zinc-600"
                 placeholder="Start writing this chapter..."
                 value={activeChapter.content}
