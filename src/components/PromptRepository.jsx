@@ -3548,6 +3548,25 @@ export default function PromptRepository() {
                     This will save a snapshot of the current chapter content.
                   </p>
                 )}
+
+                {/* Show existing saved versions */}
+                {activeChapterVersions.length > 0 && (
+                  <div className="mt-4 pt-3 border-t border-zinc-700">
+                    <label className="block text-xs text-zinc-400 mb-2">
+                      Existing Versions ({activeChapterVersions.length})
+                    </label>
+                    <div className="max-h-32 overflow-y-auto space-y-1">
+                      {activeChapterVersions.slice().reverse().map(v => (
+                        <div key={v.id} className="flex items-center justify-between bg-zinc-900/50 rounded px-2 py-1.5">
+                          <span className="text-xs text-zinc-300 truncate">{v.name}</span>
+                          <span className="text-[10px] text-zinc-500 flex-shrink-0 ml-2">
+                            {new Date(v.savedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="px-4 py-3 border-t border-zinc-700 flex justify-end gap-2">
                 <button
