@@ -2892,6 +2892,7 @@ export default function PromptRepository() {
     const [renamingChapter, setRenamingChapter] = useState(null); // { sectionId, id, title }
     const [draggingChapter, setDraggingChapter] = useState(null); // { sectionId, chapterId }
     const [dragOverTarget, setDragOverTarget] = useState(null); // { sectionId, index }
+    const [chapterSortMode, setChapterSortMode] = useState('manual'); // 'manual' | 'chronological' | 'lastVersionSaved'
     const [showVersionModal, setShowVersionModal] = useState(false); // Show save version modal
     const [versionName, setVersionName] = useState(''); // Version name input
     const [versionNameError, setVersionNameError] = useState(''); // Error for duplicate version names
@@ -2908,6 +2909,33 @@ export default function PromptRepository() {
     const saveData = (newData) => {
       setBookData(newData);
       onUpdate(JSON.stringify(newData));
+    };
+
+    // Sort chapters based on selected mode
+    const sortChapters = (chapters) => {
+      if (chapterSortMode === 'manual') {
+        return chapters; // Keep original order
+      }
+
+      const sorted = [...chapters];
+      if (chapterSortMode === 'chronological') {
+        // Sort by creation date (oldest first), chapters without createdAt go to end
+        sorted.sort((a, b) => {
+          if (!a.createdAt && !b.createdAt) return 0;
+          if (!a.createdAt) return 1;
+          if (!b.createdAt) return -1;
+          return new Date(a.createdAt) - new Date(b.createdAt);
+        });
+      } else if (chapterSortMode === 'lastVersionSaved') {
+        // Sort by last version saved (most recent first), chapters without versions go to end
+        sorted.sort((a, b) => {
+          if (!a.lastVersionSavedAt && !b.lastVersionSavedAt) return 0;
+          if (!a.lastVersionSavedAt) return 1;
+          if (!b.lastVersionSavedAt) return -1;
+          return new Date(b.lastVersionSavedAt) - new Date(a.lastVersionSavedAt);
+        });
+      }
+      return sorted;
     };
 
     const handleChapterDragStart = (e, sectionId, chapterId) => {
@@ -2993,7 +3021,7 @@ export default function PromptRepository() {
       const section = bookData.sections.find(s => s.id === sectionId);
       const newChapterId = generateId();
       const defaultTitle = bookData.autoNumberChapters ? 'Untitled' : `Chapter ${section.chapters.length + 1}`;
-      const newChapter = { id: newChapterId, title: defaultTitle, content: '' };
+      const newChapter = { id: newChapterId, title: defaultTitle, content: '', createdAt: new Date().toISOString() };
       const newData = {
         ...bookData,
         sections: bookData.sections.map(s => s.id === sectionId ? { ...s, chapters: [...s.chapters, newChapter] } : s),
@@ -3221,11 +3249,12 @@ export default function PromptRepository() {
         return;
       }
 
+      const now = new Date().toISOString();
       const newVersion = {
         id: generateId(),
         name: name.trim(),
         content: activeChapter.content,
-        savedAt: new Date().toISOString()
+        savedAt: now
       };
       const newData = {
         ...bookData,
@@ -3233,7 +3262,7 @@ export default function PromptRepository() {
           ? {
               ...s,
               chapters: s.chapters.map(c => c.id === bookData.activeChapterId
-                ? { ...c, versions: [...(c.versions || []), newVersion] }
+                ? { ...c, versions: [...(c.versions || []), newVersion], lastVersionSavedAt: now }
                 : c
               )
             }
@@ -3339,6 +3368,19 @@ export default function PromptRepository() {
               >
                 <Hash size={13} />
               </button>
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    const modes = ['manual', 'chronological', 'lastVersionSaved'];
+                    const currentIndex = modes.indexOf(chapterSortMode);
+                    setChapterSortMode(modes[(currentIndex + 1) % modes.length]);
+                  }}
+                  className={`p-1 rounded ${chapterSortMode !== 'manual' ? 'bg-amber-500/20 text-amber-400' : 'text-zinc-500 hover:bg-zinc-700 hover:text-zinc-300'}`}
+                  title={`Sort: ${chapterSortMode === 'manual' ? 'Manual order' : chapterSortMode === 'chronological' ? 'By creation date' : 'By last version saved'}`}
+                >
+                  <ArrowUpDown size={13} />
+                </button>
+              </div>
               <button
                 onClick={addSection}
                 className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
@@ -3383,15 +3425,15 @@ export default function PromptRepository() {
                 {/* Chapters */}
                 {expandedSections.has(section.id) && (
                   <>
-                    {section.chapters.map((chapter, chapterIndex) => (
+                    {sortChapters(section.chapters).map((chapter, chapterIndex) => (
                       <div
                         key={chapter.id}
-                        draggable={!renamingChapter || renamingChapter.id !== chapter.id}
-                        onDragStart={(e) => handleChapterDragStart(e, section.id, chapter.id)}
+                        draggable={chapterSortMode === 'manual' && (!renamingChapter || renamingChapter.id !== chapter.id)}
+                        onDragStart={(e) => chapterSortMode === 'manual' && handleChapterDragStart(e, section.id, chapter.id)}
                         onDragEnd={handleChapterDragEnd}
-                        onDragOver={(e) => handleChapterDragOver(e, section.id, chapterIndex)}
-                        onDrop={(e) => handleChapterDrop(e, section.id, chapterIndex)}
-                        className={`group flex items-center gap-1 pl-4 pr-2 py-1 cursor-grab active:cursor-grabbing hover:bg-zinc-800 ${
+                        onDragOver={(e) => chapterSortMode === 'manual' && handleChapterDragOver(e, section.id, chapterIndex)}
+                        onDrop={(e) => chapterSortMode === 'manual' && handleChapterDrop(e, section.id, chapterIndex)}
+                        className={`group flex items-center gap-1 pl-4 pr-2 py-1 ${chapterSortMode === 'manual' ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} hover:bg-zinc-800 ${
                           draggingChapter?.chapterId === chapter.id
                             ? 'opacity-40 bg-zinc-700'
                             : dragOverTarget?.sectionId === section.id && dragOverTarget?.index === chapterIndex && draggingChapter && draggingChapter.chapterId !== chapter.id
@@ -3402,7 +3444,7 @@ export default function PromptRepository() {
                         }`}
                         onClick={() => selectChapter(section.id, chapter.id)}
                       >
-                        <GripVertical size={10} className="text-zinc-600 flex-shrink-0 mr-0.5" />
+                        {chapterSortMode === 'manual' && <GripVertical size={10} className="text-zinc-600 flex-shrink-0 mr-0.5" />}
                         {renamingChapter?.id === chapter.id ? (
                           <>
                             {bookData.autoNumberChapters && (
@@ -3444,8 +3486,8 @@ export default function PromptRepository() {
                         ) : null}
                       </div>
                     ))}
-                    {/* Drop zone at end of chapter list */}
-                    {draggingChapter && (
+                    {/* Drop zone at end of chapter list - only in manual mode */}
+                    {chapterSortMode === 'manual' && draggingChapter && (
                       <div
                         onDragOver={(e) => handleChapterDragOver(e, section.id, section.chapters.length)}
                         onDrop={(e) => handleChapterDrop(e, section.id, section.chapters.length)}

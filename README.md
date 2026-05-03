@@ -31,8 +31,9 @@ Structured data storage with two sub-types:
 #### Book
 Organize long-form content into sections and chapters:
 - Hierarchical structure with sections containing chapters
-- Drag-and-drop chapter reordering
+- Drag-and-drop chapter reordering (in manual mode)
 - Auto-numbering toggle for chapters
+- **Chapter Sorting**: Sort chapters by manual order, chronological (creation date), or by last version saved
 - **Version Control**: Save named snapshots of chapter content and restore any previous version
 
 #### Travel Itinerary
