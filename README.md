@@ -16,6 +16,7 @@ Simple text notes for quick writing and general note-taking.
 Powerful table-based notes with:
 - Multiple tables per note
 - Resizable columns
+- Resizable row heights (drag bottom edge to expand, supports text wrapping)
 - Column types: Text, Date picker, Dropdown
 - Pre-built templates:
   - **Health**: Workout Tracker, Meal & Diet Log

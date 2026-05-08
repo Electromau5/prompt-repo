@@ -4793,12 +4793,17 @@ Include everything:
 
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
     // Default table structure
+    const DEFAULT_ROW_HEIGHT = 36;
+    const MIN_ROW_HEIGHT = 36;
+    const MAX_ROW_HEIGHT = 144; // 4x default
+
     const createDefaultTable = (name = 'Table 1') => ({
       name,
       columns: ['Column A', 'Column B', 'Column C'],
       columnWidths: [150, 150, 150],
       columnTypes: [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
-      rows: [['', '', ''], ['', '', ''], ['', '', '']]
+      rows: [['', '', ''], ['', '', ''], ['', '', '']],
+      rowHeights: [DEFAULT_ROW_HEIGHT, DEFAULT_ROW_HEIGHT, DEFAULT_ROW_HEIGHT]
     });
 
     // Parse spreadsheet data from note content (supports legacy and new format)
@@ -4809,24 +4814,30 @@ Include everything:
         if (parsed.tables && Array.isArray(parsed.tables)) {
           // Migrate tables to ensure they have all required fields
           return {
-            tables: parsed.tables.map((table, idx) => ({
-              name: table.name || `Table ${idx + 1}`,
-              columns: table.columns || ['Column A', 'Column B', 'Column C'],
-              columnWidths: table.columnWidths || table.columns?.map(() => 150) || [150, 150, 150],
-              columnTypes: table.columnTypes || table.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
-              rows: table.rows || [['', '', '']]
-            })),
+            tables: parsed.tables.map((table, idx) => {
+              const rows = table.rows || [['', '', '']];
+              return {
+                name: table.name || `Table ${idx + 1}`,
+                columns: table.columns || ['Column A', 'Column B', 'Column C'],
+                columnWidths: table.columnWidths || table.columns?.map(() => 150) || [150, 150, 150],
+                columnTypes: table.columnTypes || table.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
+                rows,
+                rowHeights: table.rowHeights || rows.map(() => DEFAULT_ROW_HEIGHT)
+              };
+            }),
             activeTableIndex: parsed.activeTableIndex || 0
           };
         }
         // Legacy format: single table with columns/rows
+        const rows = parsed.rows || [['', '', '']];
         return {
           tables: [{
             name: 'Table 1',
             columns: parsed.columns || ['Column A', 'Column B', 'Column C'],
             columnWidths: parsed.columnWidths || parsed.columns?.map(() => 150) || [150, 150, 150],
             columnTypes: parsed.columnTypes || parsed.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
-            rows: parsed.rows || [['', '', '']]
+            rows,
+            rowHeights: parsed.rowHeights || rows.map(() => DEFAULT_ROW_HEIGHT)
           }],
           activeTableIndex: 0
         };
@@ -4837,10 +4848,13 @@ Include everything:
 
     const [spreadsheetData, setSpreadsheetData] = useState(() => parseSpreadsheetData(note.content));
     const [resizingColumn, setResizingColumn] = useState(null);
+    const [resizingRow, setResizingRow] = useState(null);
     const [columnTypeMenu, setColumnTypeMenu] = useState(null); // { tableIndex, colIndex }
     const [dropdownOptionsEdit, setDropdownOptionsEdit] = useState(null); // { tableIndex, colIndex, options }
     const resizeStartX = useRef(0);
     const resizeStartWidth = useRef(0);
+    const resizeStartY = useRef(0);
+    const resizeStartHeight = useRef(0);
 
     // Get current active table
     const activeTable = spreadsheetData.tables[spreadsheetData.activeTableIndex] || spreadsheetData.tables[0];
@@ -4881,7 +4895,8 @@ Include everything:
       const tableIndex = spreadsheetData.activeTableIndex;
       const table = spreadsheetData.tables[tableIndex];
       const newRow = table.columns.map(() => '');
-      updateTable(tableIndex, { rows: [...table.rows, newRow] });
+      const newRowHeights = [...(table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT)), DEFAULT_ROW_HEIGHT];
+      updateTable(tableIndex, { rows: [...table.rows, newRow], rowHeights: newRowHeights });
     };
 
     const removeRow = (rowIndex) => {
@@ -4889,7 +4904,8 @@ Include everything:
       const table = spreadsheetData.tables[tableIndex];
       if (table.rows.length <= 1) return;
       const newRows = table.rows.filter((_, i) => i !== rowIndex);
-      updateTable(tableIndex, { rows: newRows });
+      const newRowHeights = (table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT)).filter((_, i) => i !== rowIndex);
+      updateTable(tableIndex, { rows: newRows, rowHeights: newRowHeights });
     };
 
     const addColumn = () => {
@@ -4945,6 +4961,39 @@ Include everything:
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }, [resizingColumn, spreadsheetData.activeTableIndex]);
+
+    // Row height resizing
+    const handleRowResizeStart = (e, rowIndex) => {
+      e.preventDefault();
+      setResizingRow(rowIndex);
+      resizeStartY.current = e.clientY;
+      resizeStartHeight.current = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
+    };
+
+    useEffect(() => {
+      if (resizingRow === null) return;
+
+      const handleMouseMove = (e) => {
+        const diff = e.clientY - resizeStartY.current;
+        const newHeight = Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, resizeStartHeight.current + diff));
+        const tableIndex = spreadsheetData.activeTableIndex;
+        const table = spreadsheetData.tables[tableIndex];
+        const newRowHeights = [...(table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT))];
+        newRowHeights[resizingRow] = newHeight;
+        updateTable(tableIndex, { rowHeights: newRowHeights });
+      };
+
+      const handleMouseUp = () => {
+        setResizingRow(null);
+      };
+
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+      };
+    }, [resizingRow, spreadsheetData.activeTableIndex]);
 
     // Unique non-empty cell values in column order, for seeding dropdown options
     const getUniqueColumnCellValues = (table, colIndex) => {
@@ -5012,6 +5061,8 @@ Include everything:
     // Render cell input based on column type
     const renderCellInput = (cell, rowIndex, colIndex) => {
       const columnType = activeTable.columnTypes[colIndex] || { type: 'text' };
+      const rowHeight = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
+      const isExpanded = rowHeight > DEFAULT_ROW_HEIGHT;
 
       switch (columnType.type) {
         case 'date':
@@ -5055,6 +5106,18 @@ Include everything:
             </select>
           );
         default:
+          // Use textarea when row is expanded, input when not
+          if (isExpanded) {
+            return (
+              <textarea
+                value={cell}
+                onChange={(e) => updateCell(rowIndex, colIndex, e.target.value)}
+                className="w-full h-full bg-transparent px-2 py-2 text-sm focus:outline-none focus:bg-zinc-700 resize-none"
+                style={{ height: `${rowHeight - 4}px` }}
+                placeholder=""
+              />
+            );
+          }
           return (
             <input
               type="text"
@@ -5105,11 +5168,13 @@ Include everything:
                 while (cells.length < headers.length) cells.push('');
                 return cells.slice(0, headers.length);
               });
+              const finalRows = rows.length > 0 ? rows : [[]];
               updateTable(tableIndex, {
                 columns: headers,
                 columnWidths: headers.map(() => 150),
                 columnTypes: headers.map(() => ({ type: 'text' })),
-                rows: rows.length > 0 ? rows : [[]]
+                rows: finalRows,
+                rowHeights: finalRows.map(() => DEFAULT_ROW_HEIGHT)
               });
             }
           }
@@ -5132,11 +5197,13 @@ Include everything:
               while (cells.length < headers.length) cells.push('');
               return cells.slice(0, headers.length);
             });
+            const finalRows = rows.length > 0 ? rows : [['']];
             updateTable(tableIndex, {
               columns: headers.length > 0 ? headers : ['Column A'],
               columnWidths: (headers.length > 0 ? headers : ['Column A']).map(() => 150),
               columnTypes: (headers.length > 0 ? headers : ['Column A']).map(() => ({ type: 'text' })),
-              rows: rows.length > 0 ? rows : [['']]
+              rows: finalRows,
+              rowHeights: finalRows.map(() => DEFAULT_ROW_HEIGHT)
             });
           }
         };
@@ -5347,33 +5414,48 @@ Include everything:
               </tr>
             </thead>
             <tbody>
-              {activeTable.rows.map((row, rowIndex) => (
-                <tr key={rowIndex} className="group">
-                  <td className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10">
-                    {rowIndex + 1}
-                  </td>
-                  {row.map((cell, colIndex) => (
+              {activeTable.rows.map((row, rowIndex) => {
+                const rowHeight = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
+                return (
+                  <tr key={rowIndex} className="group relative" style={{ height: `${rowHeight}px` }}>
                     <td
-                      key={colIndex}
-                      className="border border-zinc-700 p-0"
-                      style={{ width: `${activeTable.columnWidths[colIndex]}px`, minWidth: `${activeTable.columnWidths[colIndex]}px` }}
+                      className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10 relative"
+                      style={{ height: `${rowHeight}px` }}
                     >
-                      {renderCellInput(cell, rowIndex, colIndex)}
+                      {rowIndex + 1}
+                      {/* Row resize handle */}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 h-2 cursor-row-resize hover:bg-blue-500/50 z-20"
+                        onMouseDown={(e) => handleRowResizeStart(e, rowIndex)}
+                      />
                     </td>
-                  ))}
-                  <td className="border border-zinc-700 p-1 bg-zinc-800/50">
-                    {activeTable.rows.length > 1 && (
-                      <button
-                        onClick={() => removeRow(rowIndex)}
-                        className="p-1 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                        title="Remove row"
+                    {row.map((cell, colIndex) => (
+                      <td
+                        key={colIndex}
+                        className="border border-zinc-700 p-0 align-top"
+                        style={{
+                          width: `${activeTable.columnWidths[colIndex]}px`,
+                          minWidth: `${activeTable.columnWidths[colIndex]}px`,
+                          height: `${rowHeight}px`
+                        }}
                       >
-                        <Minus size={14} />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
+                        {renderCellInput(cell, rowIndex, colIndex)}
+                      </td>
+                    ))}
+                    <td className="border border-zinc-700 p-1 bg-zinc-800/50 align-top" style={{ height: `${rowHeight}px` }}>
+                      {activeTable.rows.length > 1 && (
+                        <button
+                          onClick={() => removeRow(rowIndex)}
+                          className="p-1 text-zinc-500 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          title="Remove row"
+                        >
+                          <Minus size={14} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
