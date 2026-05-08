@@ -4794,8 +4794,6 @@ Include everything:
   const SpreadsheetEditor = ({ note, isEditing, onUpdate }) => {
     // Default table structure
     const DEFAULT_ROW_HEIGHT = 36;
-    const MIN_ROW_HEIGHT = 36;
-    const MAX_ROW_HEIGHT = 144; // 4x default
 
     const createDefaultTable = (name = 'Table 1') => ({
       name,
@@ -4803,7 +4801,7 @@ Include everything:
       columnWidths: [150, 150, 150],
       columnTypes: [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
       rows: [['', '', ''], ['', '', ''], ['', '', '']],
-      rowHeights: [DEFAULT_ROW_HEIGHT, DEFAULT_ROW_HEIGHT, DEFAULT_ROW_HEIGHT]
+      rowHeightMultiplier: 1 // 1x, 2x, 3x, or 4x
     });
 
     // Parse spreadsheet data from note content (supports legacy and new format)
@@ -4822,7 +4820,7 @@ Include everything:
                 columnWidths: table.columnWidths || table.columns?.map(() => 150) || [150, 150, 150],
                 columnTypes: table.columnTypes || table.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
                 rows,
-                rowHeights: table.rowHeights || rows.map(() => DEFAULT_ROW_HEIGHT)
+                rowHeightMultiplier: table.rowHeightMultiplier || 1
               };
             }),
             activeTableIndex: parsed.activeTableIndex || 0
@@ -4837,7 +4835,7 @@ Include everything:
             columnWidths: parsed.columnWidths || parsed.columns?.map(() => 150) || [150, 150, 150],
             columnTypes: parsed.columnTypes || parsed.columns?.map(() => ({ type: 'text' })) || [{ type: 'text' }, { type: 'text' }, { type: 'text' }],
             rows,
-            rowHeights: parsed.rowHeights || rows.map(() => DEFAULT_ROW_HEIGHT)
+            rowHeightMultiplier: parsed.rowHeightMultiplier || 1
           }],
           activeTableIndex: 0
         };
@@ -4848,13 +4846,10 @@ Include everything:
 
     const [spreadsheetData, setSpreadsheetData] = useState(() => parseSpreadsheetData(note.content));
     const [resizingColumn, setResizingColumn] = useState(null);
-    const [resizingRow, setResizingRow] = useState(null);
     const [columnTypeMenu, setColumnTypeMenu] = useState(null); // { tableIndex, colIndex }
     const [dropdownOptionsEdit, setDropdownOptionsEdit] = useState(null); // { tableIndex, colIndex, options }
     const resizeStartX = useRef(0);
     const resizeStartWidth = useRef(0);
-    const resizeStartY = useRef(0);
-    const resizeStartHeight = useRef(0);
 
     // Get current active table
     const activeTable = spreadsheetData.tables[spreadsheetData.activeTableIndex] || spreadsheetData.tables[0];
@@ -4895,8 +4890,7 @@ Include everything:
       const tableIndex = spreadsheetData.activeTableIndex;
       const table = spreadsheetData.tables[tableIndex];
       const newRow = table.columns.map(() => '');
-      const newRowHeights = [...(table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT)), DEFAULT_ROW_HEIGHT];
-      updateTable(tableIndex, { rows: [...table.rows, newRow], rowHeights: newRowHeights });
+      updateTable(tableIndex, { rows: [...table.rows, newRow] });
     };
 
     const removeRow = (rowIndex) => {
@@ -4904,8 +4898,13 @@ Include everything:
       const table = spreadsheetData.tables[tableIndex];
       if (table.rows.length <= 1) return;
       const newRows = table.rows.filter((_, i) => i !== rowIndex);
-      const newRowHeights = (table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT)).filter((_, i) => i !== rowIndex);
-      updateTable(tableIndex, { rows: newRows, rowHeights: newRowHeights });
+      updateTable(tableIndex, { rows: newRows });
+    };
+
+    // Update row height multiplier for current table
+    const updateRowHeightMultiplier = (multiplier) => {
+      const tableIndex = spreadsheetData.activeTableIndex;
+      updateTable(tableIndex, { rowHeightMultiplier: multiplier });
     };
 
     const addColumn = () => {
@@ -4961,39 +4960,6 @@ Include everything:
         document.removeEventListener('mouseup', handleMouseUp);
       };
     }, [resizingColumn, spreadsheetData.activeTableIndex]);
-
-    // Row height resizing
-    const handleRowResizeStart = (e, rowIndex) => {
-      e.preventDefault();
-      setResizingRow(rowIndex);
-      resizeStartY.current = e.clientY;
-      resizeStartHeight.current = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
-    };
-
-    useEffect(() => {
-      if (resizingRow === null) return;
-
-      const handleMouseMove = (e) => {
-        const diff = e.clientY - resizeStartY.current;
-        const newHeight = Math.min(MAX_ROW_HEIGHT, Math.max(MIN_ROW_HEIGHT, resizeStartHeight.current + diff));
-        const tableIndex = spreadsheetData.activeTableIndex;
-        const table = spreadsheetData.tables[tableIndex];
-        const newRowHeights = [...(table.rowHeights || table.rows.map(() => DEFAULT_ROW_HEIGHT))];
-        newRowHeights[resizingRow] = newHeight;
-        updateTable(tableIndex, { rowHeights: newRowHeights });
-      };
-
-      const handleMouseUp = () => {
-        setResizingRow(null);
-      };
-
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
-      return () => {
-        document.removeEventListener('mousemove', handleMouseMove);
-        document.removeEventListener('mouseup', handleMouseUp);
-      };
-    }, [resizingRow, spreadsheetData.activeTableIndex]);
 
     // Unique non-empty cell values in column order, for seeding dropdown options
     const getUniqueColumnCellValues = (table, colIndex) => {
@@ -5061,8 +5027,9 @@ Include everything:
     // Render cell input based on column type
     const renderCellInput = (cell, rowIndex, colIndex) => {
       const columnType = activeTable.columnTypes[colIndex] || { type: 'text' };
-      const rowHeight = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
-      const isExpanded = rowHeight > DEFAULT_ROW_HEIGHT;
+      const multiplier = activeTable.rowHeightMultiplier || 1;
+      const rowHeight = DEFAULT_ROW_HEIGHT * multiplier;
+      const isExpanded = multiplier > 1;
 
       switch (columnType.type) {
         case 'date':
@@ -5173,8 +5140,7 @@ Include everything:
                 columns: headers,
                 columnWidths: headers.map(() => 150),
                 columnTypes: headers.map(() => ({ type: 'text' })),
-                rows: finalRows,
-                rowHeights: finalRows.map(() => DEFAULT_ROW_HEIGHT)
+                rows: finalRows
               });
             }
           }
@@ -5202,8 +5168,7 @@ Include everything:
               columns: headers.length > 0 ? headers : ['Column A'],
               columnWidths: (headers.length > 0 ? headers : ['Column A']).map(() => 150),
               columnTypes: (headers.length > 0 ? headers : ['Column A']).map(() => ({ type: 'text' })),
-              rows: finalRows,
-              rowHeights: finalRows.map(() => DEFAULT_ROW_HEIGHT)
+              rows: finalRows
             });
           }
         };
@@ -5311,6 +5276,34 @@ Include everything:
             onChange={handleFileUpload}
             className="hidden"
           />
+
+          {/* Row Height Control */}
+          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-zinc-700">
+            <span className="text-xs text-zinc-500">Row Height:</span>
+            <div className="flex items-center gap-1">
+              {[1, 2, 3, 4].map((multiplier) => (
+                <label
+                  key={multiplier}
+                  className={`flex items-center justify-center px-2 py-1 text-xs rounded cursor-pointer transition-colors ${
+                    (activeTable.rowHeightMultiplier || 1) === multiplier
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-zinc-700 text-zinc-400 hover:bg-zinc-600'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="rowHeight"
+                    value={multiplier}
+                    checked={(activeTable.rowHeightMultiplier || 1) === multiplier}
+                    onChange={() => updateRowHeightMultiplier(multiplier)}
+                    className="sr-only"
+                  />
+                  {multiplier}x
+                </label>
+              ))}
+            </div>
+          </div>
+
           <span className="text-xs text-zinc-500 ml-2">
             {activeTable.rows.length} rows × {activeTable.columns.length} columns
           </span>
@@ -5415,19 +5408,15 @@ Include everything:
             </thead>
             <tbody>
               {activeTable.rows.map((row, rowIndex) => {
-                const rowHeight = activeTable.rowHeights?.[rowIndex] || DEFAULT_ROW_HEIGHT;
+                const multiplier = activeTable.rowHeightMultiplier || 1;
+                const rowHeight = DEFAULT_ROW_HEIGHT * multiplier;
                 return (
-                  <tr key={rowIndex} className="group relative" style={{ height: `${rowHeight}px` }}>
+                  <tr key={rowIndex} className="group" style={{ height: `${rowHeight}px` }}>
                     <td
-                      className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10 relative"
+                      className="bg-zinc-800 border border-zinc-700 p-2 text-xs text-zinc-500 text-center sticky left-0 z-10"
                       style={{ height: `${rowHeight}px` }}
                     >
                       {rowIndex + 1}
-                      {/* Row resize handle */}
-                      <div
-                        className="absolute bottom-0 left-0 right-0 h-2 cursor-row-resize hover:bg-blue-500/50 z-20"
-                        onMouseDown={(e) => handleRowResizeStart(e, rowIndex)}
-                      />
                     </td>
                     {row.map((cell, colIndex) => (
                       <td
