@@ -654,7 +654,11 @@ export default function PromptRepository() {
       setNotes(prev => prev.map(n =>
         n.id === noteId ? { ...n, ...updatedNote } : n
       ));
-      setEditingNoteId(null);
+      // Only reset editing state for non-silent updates (e.g., explicit Save button clicks)
+      // Silent updates from editors like BookEditor should not affect editing state
+      if (!silent) {
+        setEditingNoteId(null);
+      }
       // Update global tags if new ones were added
       if (updates.tags) {
         const newTags = updates.tags.filter(t => !data.tags.includes(t));
