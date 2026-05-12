@@ -652,7 +652,7 @@ export default function PromptRepository() {
         updates.tags
       );
       setNotes(prev => prev.map(n =>
-        n.id === noteId ? { ...n, ...updatedNote } : n
+        n.id === noteId ? { ...n, ...updatedNote, id: noteId } : n
       ));
       // Only reset editing state for non-silent updates (e.g., explicit Save button clicks)
       // Silent updates from editors like BookEditor should not affect editing state
@@ -2849,8 +2849,24 @@ export default function PromptRepository() {
     const parseBookData = (content) => {
       try {
         const parsed = JSON.parse(content);
-        if (parsed.sections && Array.isArray(parsed.sections)) {
-          return { ...parsed, autoNumberChapters: parsed.autoNumberChapters !== false };
+        if (parsed.sections && Array.isArray(parsed.sections) && parsed.sections.length > 0) {
+          // Ensure activeSectionId and activeChapterId are valid
+          const firstSection = parsed.sections[0];
+          const firstChapter = firstSection?.chapters?.[0];
+          const activeSectionId = parsed.activeSectionId && parsed.sections.some(s => s.id === parsed.activeSectionId)
+            ? parsed.activeSectionId
+            : firstSection?.id;
+          const activeSection = parsed.sections.find(s => s.id === activeSectionId);
+          const activeChapterId = parsed.activeChapterId && activeSection?.chapters?.some(c => c.id === parsed.activeChapterId)
+            ? parsed.activeChapterId
+            : activeSection?.chapters?.[0]?.id || firstChapter?.id;
+
+          return {
+            ...parsed,
+            activeSectionId,
+            activeChapterId,
+            autoNumberChapters: parsed.autoNumberChapters !== false
+          };
         }
       } catch {}
       const sectionId = generateId();
