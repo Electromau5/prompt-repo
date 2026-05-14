@@ -534,6 +534,15 @@ export default function PromptRepository() {
       .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
   };
 
+  const switchNotebook = (notebookId) => {
+    setActiveNotebook(notebookId);
+    // Select the first note in the new notebook, or null if no notes
+    const notebookNotes = notes
+      .filter(n => n.notebookId === notebookId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+    setActiveNote(notebookNotes.length > 0 ? notebookNotes[0].id : null);
+  };
+
   const createNote = async () => {
     if (!noteForm.title.trim()) {
       showNotif('Please enter a title');
@@ -5967,7 +5976,7 @@ Include everything:
           {notebooks.map(notebook => (
             <button
               key={notebook.id}
-              onClick={() => setActiveNotebook(notebook.id)}
+              onClick={() => switchNotebook(notebook.id)}
               onDragOver={(e) => handleNotebookDragOver(e, notebook.id)}
               onDragLeave={handleNotebookDragLeave}
               onDrop={(e) => handleNotebookDrop(e, notebook.id)}
@@ -6329,10 +6338,12 @@ Include everything:
                   <button
                     key={notebook.id}
                     onClick={async () => {
+                      const noteIdToSelect = movingNoteId;
                       await moveNoteToNotebook(movingNoteId, notebook.id);
                       setShowMoveNote(false);
                       setMovingNoteId(null);
                       setActiveNotebook(notebook.id);
+                      setActiveNote(noteIdToSelect);
                     }}
                     className="w-full flex items-center gap-3 p-3 rounded-lg hover:bg-zinc-700 text-left transition-colors"
                   >
