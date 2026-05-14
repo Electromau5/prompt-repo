@@ -175,6 +175,7 @@ export default function PromptRepository() {
   const [data, setData] = useState(emptyData);
   const [expandedFolders, setExpandedFolders] = useState(new Set());
   const [expandedPrompts, setExpandedPrompts] = useState(new Set());
+  const [promptSortAlphabetical, setPromptSortAlphabetical] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState([]);
   const [copiedId, setCopiedId] = useState(null);
@@ -2310,8 +2311,17 @@ export default function PromptRepository() {
                     )}
                   </button>
                 )}
+                {prompts.length > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPromptSortAlphabetical(!promptSortAlphabetical); }}
+                    className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${promptSortAlphabetical ? 'text-blue-400 hover:text-blue-300 bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-700'}`}
+                    title={promptSortAlphabetical ? 'Sort by default order' : 'Sort alphabetically'}
+                  >
+                    <ArrowUpDown size={14} /> {promptSortAlphabetical ? 'A-Z' : 'Sort'}
+                  </button>
+                )}
               </div>
-              {prompts.map(prompt => (
+              {[...prompts].sort((a, b) => promptSortAlphabetical ? a.title.localeCompare(b.title) : 0).map(prompt => (
                 <PromptAccordion key={prompt.id} prompt={prompt} />
               ))}
               <FolderAccordion parentId={folder.id} depth={depth + 1} />
@@ -2418,12 +2428,21 @@ export default function PromptRepository() {
                     )}
                   </button>
                 )}
+                {prompts.length > 0 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setPromptSortAlphabetical(!promptSortAlphabetical); }}
+                    className={`flex items-center gap-1 px-2 py-1 text-xs rounded transition-colors ${promptSortAlphabetical ? 'text-blue-400 hover:text-blue-300 bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-700'}`}
+                    title={promptSortAlphabetical ? 'Sort by default order' : 'Sort alphabetically'}
+                  >
+                    <ArrowUpDown size={14} /> {promptSortAlphabetical ? 'A-Z' : 'Sort'}
+                  </button>
+                )}
               </div>
               {/* Prompts in this folder */}
               {prompts.length > 0 && (
                 <div className="mb-3">
                   <div className="space-y-2">
-                    {prompts.map(prompt => (
+                    {[...prompts].sort((a, b) => promptSortAlphabetical ? a.title.localeCompare(b.title) : 0).map(prompt => (
                       <PromptAccordion key={prompt.id} prompt={prompt} />
                     ))}
                   </div>
