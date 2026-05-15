@@ -2871,6 +2871,8 @@ export default function PromptRepository() {
   const currentNotebook = notebooks.find(n => n.id === activeNotebook);
   const isPromptsNotebook = currentNotebook?.type === 'prompts';
   const isBookNotebook = currentNotebook?.type === 'book';
+  const isRepositoryNotebook = currentNotebook?.type === 'repository';
+  const isSpreadsheetNotebook = currentNotebook?.type === 'spreadsheet';
 
   // Spreadsheet Editor Component
   const BookEditor = ({ note, onUpdate }) => {
@@ -5989,10 +5991,12 @@ Include everything:
               }`}
               title={notebook.name}
             >
-              {notebook.type === 'prompts' ? (
-                <FileText size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
-              ) : notebook.type === 'book' ? (
+              {notebook.type === 'book' ? (
                 <BookOpen size={18} className={activeNotebook === notebook.id ? 'text-amber-400' : dragOverNotebook === notebook.id ? 'text-green-400' : 'text-amber-500/70'} />
+              ) : notebook.type === 'repository' ? (
+                <Database size={18} className={activeNotebook === notebook.id ? 'text-purple-400' : dragOverNotebook === notebook.id ? 'text-green-400' : 'text-purple-500/70'} />
+              ) : notebook.type === 'spreadsheet' ? (
+                <Table size={18} className={activeNotebook === notebook.id ? 'text-green-400' : dragOverNotebook === notebook.id ? 'text-green-400' : 'text-green-500/70'} />
               ) : (
                 <Notebook size={18} className={activeNotebook === notebook.id ? 'text-blue-400' : dragOverNotebook === notebook.id ? 'text-green-400' : ''} />
               )}
@@ -6410,22 +6414,52 @@ Include everything:
                   <div className="font-medium text-sm">Book</div>
                   <div className="text-xs text-zinc-500 mt-1">Ordered chapters you can drag to rearrange</div>
                 </button>
+                <button
+                  onClick={() => setNewNotebookType('repository')}
+                  className={`p-4 rounded-lg border text-left transition-colors ${
+                    newNotebookType === 'repository'
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-zinc-700 hover:border-zinc-600'
+                  }`}
+                >
+                  <Database size={24} className={newNotebookType === 'repository' ? 'text-purple-400 mb-2' : 'text-zinc-500 mb-2'} />
+                  <div className="font-medium text-sm">Repository</div>
+                  <div className="text-xs text-zinc-500 mt-1">Structured data storage for prompts and filepaths</div>
+                </button>
+                <button
+                  onClick={() => setNewNotebookType('spreadsheet')}
+                  className={`p-4 rounded-lg border text-left transition-colors ${
+                    newNotebookType === 'spreadsheet'
+                      ? 'border-green-500 bg-green-500/10'
+                      : 'border-zinc-700 hover:border-zinc-600'
+                  }`}
+                >
+                  <Table size={24} className={newNotebookType === 'spreadsheet' ? 'text-green-400 mb-2' : 'text-zinc-500 mb-2'} />
+                  <div className="font-medium text-sm">Spreadsheet</div>
+                  <div className="text-xs text-zinc-500 mt-1">Table with rows and columns</div>
+                </button>
               </div>
-              <label className="block text-sm text-zinc-400 mb-2">{newNotebookType === 'book' ? 'Book Title' : 'Notebook Name'}</label>
+              <label className="block text-sm text-zinc-400 mb-2">
+                {newNotebookType === 'book' ? 'Book Title' : newNotebookType === 'repository' ? 'Repository Name' : newNotebookType === 'spreadsheet' ? 'Spreadsheet Name' : 'Notebook Name'}
+              </label>
               <input
                 type="text"
                 value={newNotebookName}
                 onChange={(e) => setNewNotebookName(e.target.value)}
                 className={`w-full bg-zinc-900 border border-zinc-700 rounded-lg px-4 py-3 text-sm focus:outline-none ${
-                  newNotebookType === 'book' ? 'focus:border-amber-500' : 'focus:border-blue-500'
+                  newNotebookType === 'book' ? 'focus:border-amber-500' : newNotebookType === 'repository' ? 'focus:border-purple-500' : newNotebookType === 'spreadsheet' ? 'focus:border-green-500' : 'focus:border-blue-500'
                 }`}
-                placeholder={newNotebookType === 'book' ? 'My Book' : 'My Notebook'}
+                placeholder={newNotebookType === 'book' ? 'My Book' : newNotebookType === 'repository' ? 'My Repository' : newNotebookType === 'spreadsheet' ? 'My Spreadsheet' : 'My Notebook'}
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); }}
               />
               <p className="text-xs text-zinc-500 mt-2">
                 {newNotebookType === 'book'
                   ? 'Create a book with chapters. Drag chapters to reorder them.'
+                  : newNotebookType === 'repository'
+                  ? 'Create a repository for structured data storage with prompts and filepaths.'
+                  : newNotebookType === 'spreadsheet'
+                  ? 'Create a spreadsheet with tables, rows, and columns.'
                   : 'Create a notebook to organize your notes. You can add, edit, and delete notes within each notebook.'}
               </p>
             </div>
@@ -6442,10 +6476,14 @@ Include everything:
                 className={`px-4 py-2 text-sm disabled:bg-zinc-600 disabled:cursor-not-allowed rounded flex items-center gap-2 ${
                   newNotebookType === 'book'
                     ? 'bg-amber-600 hover:bg-amber-700'
+                    : newNotebookType === 'repository'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : newNotebookType === 'spreadsheet'
+                    ? 'bg-green-600 hover:bg-green-700'
                     : 'bg-blue-600 hover:bg-blue-700'
                 }`}
               >
-                <Plus size={14} /> {newNotebookType === 'book' ? 'Create Book' : 'Create Notebook'}
+                <Plus size={14} /> {newNotebookType === 'book' ? 'Create Book' : newNotebookType === 'repository' ? 'Create Repository' : newNotebookType === 'spreadsheet' ? 'Create Spreadsheet' : 'Create Notebook'}
               </button>
             </div>
           </div>

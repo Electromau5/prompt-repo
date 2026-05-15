@@ -30,7 +30,7 @@ export interface TagCategory {
 export interface Notebook {
   id: string
   name: string
-  type: 'prompts' | 'notebook' | 'book'
+  type: 'notebook' | 'book' | 'repository' | 'spreadsheet' | 'prompts'
   createdAt?: Date
   updatedAt?: Date
 }
