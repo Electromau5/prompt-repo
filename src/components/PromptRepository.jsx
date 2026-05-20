@@ -5633,7 +5633,7 @@ Include everything:
                     onDragOver={(e) => handleNoteDragOver(e, index)}
                     onDrop={(e) => handleNoteListDrop(e, index)}
                     onClick={() => setActiveNote(note.id)}
-                    className={`w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors cursor-grab active:cursor-grabbing ${
+                    className={`group w-full text-left px-4 py-3 border-b border-zinc-800/50 transition-colors cursor-grab active:cursor-grabbing ${
                       activeNote === note.id
                         ? isBookNotebook
                           ? 'bg-amber-600/20 border-l-2 border-l-amber-500'
@@ -5664,7 +5664,24 @@ Include everything:
                       ) : (
                         <FileText size={14} className="text-blue-500 flex-shrink-0" />
                       )}
-                      <span className="font-medium text-sm truncate">{note.title}</span>
+                      <span className="font-medium text-sm truncate flex-1">{note.title}</span>
+                      {/* Note actions - visible on hover */}
+                      <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setMovingNoteId(note.id); setShowMoveNote(true); }}
+                          className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-white"
+                          title="Move to another notebook"
+                        >
+                          <Move size={12} />
+                        </button>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }}
+                          className="p-1 hover:bg-zinc-700 rounded text-zinc-400 hover:text-red-400"
+                          title="Delete note"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                     <div className={`text-xs text-zinc-500 mt-1 line-clamp-2 ${isBookNotebook ? 'ml-10' : 'ml-8'}`}>
                       {note.type === 'spreadsheet' ? (
